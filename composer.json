@@ -1,0 +1,16 @@
+{
+    "name": "pbergman/fork",
+    "description": "a helper to fork a process",
+    "license": "MIT",
+    "autoload": {
+        "psr-0": { "PBergman\\" : "src\\"   }
+    },
+    "authors": [
+        {
+            "name": "philip",
+            "email": "pbergman@live.nl"
+        }
+    ],
+    "minimum-stability": "dev",
+    "require": {}
+}
