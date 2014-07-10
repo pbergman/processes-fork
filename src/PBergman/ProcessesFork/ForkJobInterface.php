@@ -113,4 +113,15 @@ interface ForkJobInterface
      */
     public function setSuccess($success);
 
+    /**
+     * @return mixed
+     */
+    public function getResult();
+
+    /**
+     * @param   $result
+     * @return  $this|mixed
+     */
+    public function setResult($result);
+
 }

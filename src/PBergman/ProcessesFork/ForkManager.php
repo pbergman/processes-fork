@@ -17,13 +17,13 @@ use PBergman\Semaphore\SharedMemory;
  *
  * @package     PBergman\ProcessesFork
  */
-class ForkManager extends DebugLogger
+class ForkManager
 {
     private $workers = 1;
     private $jobs;
     private $state;
     private $exists = array();
-
+    private $output;
     const STATE_CHILD  = 1;
     const STATE_PARENT = 2;
 
@@ -32,18 +32,19 @@ class ForkManager extends DebugLogger
 
     public function __construct()
     {
-        parent::__construct();
-        $this->jobs  = new \SplObjectStorage();
-        $this->state = self::STATE_PARENT;
+        $this->output = new OutputHandler();
+        $this->jobs   = new \SplObjectStorage();
+        $this->state  = self::STATE_PARENT;
     }
 
-//http://stackoverflow.com/questions/1160192/monitoring-children-forked-using-php
-//
-
-
+    /**
+     * main method that spawns children
+     * end divides the work with workers
+     *
+     * @throws \Exception
+     */
     public function run()
     {
-
         $queue = new MessageQueue(ftok(__FILE__, 'm'), 0660);
         $pids  = array();
         $max   = $this->jobs->count();
@@ -62,50 +63,7 @@ class ForkManager extends DebugLogger
                     break;
                 case 0:     // @child
                     $this->state = self::STATE_CHILD;
-
-                    $this->write(sprintf("%s Child[%s] is started", posix_getpid(), $i));
-
-error_reporting(0);
-                    $exit = 0;
-
-                    /** @var ForkJobInterface $object */
-                    $queue->receive(self::QUEUE_STATE_TODO, $msgtype, 10000, $object);
-
-                    // Declare exit action so it save also if it go a Fatal error
-                    $ex = new ExitRegister();
-                    $ex->addCallback(function() use (&$object, &$queue){
-                        if (null !== $error = error_get_last()) {
-                            if ($error['type'] === E_ERROR) {
-                                $object->setSuccess(false)
-                                       ->setExitCode(255)
-                                       ->setPid(posix_getpid())
-                                       ->setError(sprintf("Fatal error: %s on line %s in file %s", $error['message'], $error['line'], $error['file']));
-                            }
-                        }
-
-                        $queue->send($object, self::QUEUE_STATE_FINISHED);
-
-                    });
-
-
-                    try{
-
-                        $object->execute();
-
-                    } catch(\Exception $e) {
-
-                        $object->setSuccess(false)
-                               ->setError($e);
-
-                        $exit = $e->getCode();
-                    }
-
-                    $object->setPid(posix_getpid())
-                           ->postExecute();
-
-//                    $queue->send($object, self::QUEUE_STATE_FINISHED);
-
-                    exit($exit);
+                    $this->startChild($queue, $i);
                     break;
                 default:    // @parent
                     $pids[$pid] = 1;
@@ -120,7 +78,6 @@ error_reporting(0);
 
             /** @var ForkJobInterface $object */
             while($data = $queue->receive(self::QUEUE_STATE_FINISHED, $msgtype, 10000, $object, true, MSG_IPC_NOWAIT, $error)) {
-
                     $object->setExitCode($this->exists[$object->getPid()]);
                     $this->jobs->attach($object);
             }
@@ -131,6 +88,60 @@ error_reporting(0);
 
     }
 
+
+    private function startChild(MessageQueue $queue, $id)
+    {
+        /** Set custom error handling */
+        $eh = new ErrorHandler($this->output);
+
+        $this->output->debug('Spawning child', posix_getpid(), OutputHandler::PROCESS_CHILD);
+
+        /** @var ForkJobInterface $object */
+        $queue->receive(self::QUEUE_STATE_TODO, $msgtype, 10000, $object);
+
+        /**
+         * Set some exit callback for when the child exists
+         */
+        $ex = new ExitRegister();
+        $ex->addCallback(function(ForkJobInterface &$object, MessageQueue $queue){
+            if (null !== $error = error_get_last()) {
+                if ($error['type'] === E_ERROR) {
+                    $object->setSuccess(false)
+                           ->setExitCode(255)
+                           ->setPid(posix_getpid())
+                           ->setError(sprintf("Fatal error: %s on line %s in file %s", $error['message'], $error['line'], $error['file']));
+                }
+            }
+
+            $queue->send($object, self::QUEUE_STATE_FINISHED);
+
+        }, array(&$object, &$queue));
+
+
+        try{
+            $object->execute();
+            $object->setPid(posix_getpid())
+                   ->postExecute();
+
+            exit(0);
+        } catch(\Exception $e) {
+            $object->setSuccess(false)
+                   ->setError($e->getMessage())
+                   ->setPid(posix_getpid())
+                   ->postExecute();
+
+            exit($e->getCode());
+        }
+
+    }
+
+    /**
+     * will get objects from object storage and place
+     * them in the message queue so the child process
+     * can pick them up when the are spawned
+     *
+     * @param MessageQueue $queue
+     */
     private function setJobsToQueue(MessageQueue $queue)
     {
         $this->jobs->rewind();
@@ -140,25 +151,37 @@ error_reporting(0);
             $id = $this->jobs->key();
             $ob = $this->jobs->current();
             $ob->setId($id);
-
             $queue->send($ob, self::QUEUE_STATE_TODO);
-
             $this->jobs->next();
         }
 
         $this->jobs->removeAll($this->jobs);
     }
 
+    /**
+     *  will wait if running pids is more than
+     *  given limit argument
+     *
+     *  pids array should be like:
+     *
+     *  array(
+     *      [1234] => 1,
+     *      [1235] => 0,
+     *  )
+     *
+     *  pid as key and running status as value
+     *
+     * @param array $pids   stack of child process pids
+     * @param int   $limit  the limit of the max workers
+     */
     private function wait(&$pids, $limit = 1)
     {
 
         while(array_sum($pids) >= $limit) {
 
             if($pid = pcntl_waitpid(0, $status)) {
-
                 $this->exists[$pid] = pcntl_wexitstatus($status);
-                $this->write(sprintf("%s is finished exit code %s", $pid, pcntl_wexitstatus($status)));
-
+                $this->output->debug(sprintf('Child finished with exit code %s', pcntl_wexitstatus($status)), $pid);
             }
 
             $pids[$pid] = 0;

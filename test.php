@@ -70,8 +70,8 @@ class job extends AbstractForkJob
     public function execute()
     {
         $sleep = rand(1,3);
+       aaa;
 //        aaa();
-        aaa();
 //        printf("sleeping %s\n", $sleep);
         sleep($sleep);
     }

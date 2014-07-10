@@ -15,6 +15,7 @@ abstract class AbstractForkJob implements ForkJobInterface
     protected $id;
     protected $success = true;
     protected $error;
+    protected $result;
 
     /**
      * constructor will set start time
@@ -22,15 +23,6 @@ abstract class AbstractForkJob implements ForkJobInterface
     public function __construct()
     {
         $this->duration = microtime(true);
-
-//        register_shutdown_function(array($this, 'close'));
-    }
-
-    function close()
-    {
-        if (null !== $error = error_get_last()) {
-            $this->error = new \ErrorException($error['message'], 0, $error['type'], $error['file'], $error['line']);
-        }
     }
 
 
@@ -148,6 +140,7 @@ abstract class AbstractForkJob implements ForkJobInterface
     public function setError($error)
     {
         $this->error = $error;
+        return $this;
     }
 
     /**
@@ -157,5 +150,24 @@ abstract class AbstractForkJob implements ForkJobInterface
     {
         return $this->error;
     }
+
+    /**
+     * @return mixed
+     */
+    public function getResult()
+    {
+        return $this->result;
+    }
+
+    /**
+     * @param   $result
+     * @return $this|mixed
+     */
+    public function setResult($result)
+    {
+        $this->result;
+        return $this;
+    }
+
 
 }
