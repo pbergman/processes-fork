@@ -4,24 +4,28 @@
  * @copyright Philip Bergman
  */
 
-namespace PBergman\ProcessesFork;
+namespace PBergman\Fork\Helpers;
 
 /**
- * Class ErrorHandler
+ * Class OutputHelper
  *
- * @package PBergman\ProcessesFork
+ * @package PBergman\Fork\Helpers
  */
-class OutputHandler
+class OutputHelper
 {
-    const PROCESS_PARENT = 1;
-    const PROCESS_CHILD  = 2;
+    const PROCESS_PARENT   = 1;
+    const PROCESS_CHILD    = 2;
+    const PROCESS_ERROR    = 4;
+    const PROCESS_WARNING  = 8;
 
     /**  @var resource */
     protected $stream;
 
     protected $debug = array(
-        self::PROCESS_PARENT => 'PARENT',
-        self::PROCESS_CHILD  => 'CHILD',
+        self::PROCESS_PARENT    => 'PARENT',
+        self::PROCESS_CHILD     => 'CHILD',
+        self::PROCESS_ERROR     => 'ERROR',
+        self::PROCESS_WARNING   => 'WARNING',
     );
 
     public function __construct()
@@ -73,7 +77,7 @@ class OutputHandler
      */
     public function debug($message, $pid, $calling = self::PROCESS_PARENT)
     {
-        $this->write(sprintf("%s [%-6s] [%-6d] %s",  date('"Y-m-d H:i:s"'), $this->debug[$calling], $pid, $message));
+        $this->write(sprintf("%s [%-7s] [%-6d] %s",  date('Y-m-d H:i:s'), $this->debug[$calling], $pid, $message));
     }
 
 

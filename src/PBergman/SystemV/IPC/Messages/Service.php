@@ -4,14 +4,14 @@
  * @copyright Philip Bergman
  */
 
-namespace PBergman\Semaphore;
+namespace PBergman\SystemV\IPC\Messages;
 
 /**
- * Class MessageQueue
+ * Class Service
  *
- * @package PBergman\Semaphore
+ * @package PBergman\SystemV\IPC\Messages
  */
-class MessageQueue
+class Service
 {
     private $queue;
 
@@ -20,12 +20,12 @@ class MessageQueue
      *
      * @param   int   $key
      * @param   int   $perms
-     * @throws  MessageQueueException
+     * @throws  ServiceException
      */
     public function __construct($key, $perms = 0666)
     {
         if (!is_numeric($key)) {
-            throw MessageQueueException::invalidKeyGiven($key);
+            throw ServiceException::invalidKeyGiven($key);
         }
 
         $this->queue = msg_get_queue($key, $perms);
@@ -36,12 +36,12 @@ class MessageQueue
      *
      * @param   int $key
      * @return  bool
-     * @throws  MessageQueueException
+     * @throws  ServiceException
      */
     public static function exists($key)
     {
         if (!is_numeric($key)) {
-            throw MessageQueueException::invalidKeyGiven($key);
+            throw ServiceException::invalidKeyGiven($key);
         }
 
         return msg_queue_exists($key);
@@ -53,12 +53,12 @@ class MessageQueue
      * need to release the system resources held by it.
      *
      * @return bool
-     * @throws MessageQueueException
+     * @throws ServiceException
      */
     public function remove()
     {
         if (false === $return = msg_remove_queue($this->queue)) {
-            throw MessageQueueException::failedToRemove($this->queue);
+            throw ServiceException::failedToRemove($this->queue);
         } else {
             return $return;
         }
@@ -73,54 +73,50 @@ class MessageQueue
      * @param   bool    $blocking
      *
      * @return  bool
-     * @throws MessageQueueException
+     * @throws ServiceException
      */
     public function send($data, $type, $serialize = true, $blocking  = true)
     {
         if (!is_numeric($type) ||  $type < 0) {
-            throw MessageQueueException::invalidMessageType($type);
+            throw ServiceException::invalidMessageType($type);
         }
 
         if (false === $return = @msg_send($this->queue, $type, $data, $serialize, $blocking, $error)) {
-            throw MessageQueueException::failedToSend($error);
+            throw ServiceException::failedToSend($error);
         } else {
             return $return;
         }
     }
-//
-//    /**
-//     * @param   int    $type            if left to null will set to relieved type of first message in queue
-//     * @param   int    $maxsize
-//     * @param   bool   $unserialize
-//     * @param   int    $flags
-//     * @return  bool
-//     * @throws  MessageQueueException
-//     * @throws  MessageQueueException
-//     */
-//    public function receive($type = 0,  $maxsize = 10000, $unserialize = true, $flags  = 0)
-//    {
-//        if (!is_numeric($type) ||  $type < 0) {
-//            throw MessageQueueException::invalidMessageType($type);
-//        }
-//
-//        if (false !==  $return = msg_receive($this->queue, $type, $msgtype, $maxsize, $data, $unserialize, $flags, $error)) {
-//
-//            $return = array(
-//                'type'    => $msgtype,
-//                'data'    => $data,
-//            );
-//
-//        } else {
-//            throw MessageQueueException::failedToReceive($error);
-//        }
-//
-//        return $return;
-//    }
 
+    /**
+     * Receive a message from a message queue
+     *
+     * @param int   $type
+     * @param int   $msgtype
+     * @param int   $maxsize
+     * @param mixed $data
+     * @param bool  $unserialize
+     * @param int   $flags
+     * @param null  $error
+     *
+     *
+     * Flag values for msg_receive
+     *
+     * MSG_IPC_NOWAIT	If there are no messages of the desiredmsgtype, return immediately and do not wait. The
+     *                  function will fail and return an integer value corresponding to MSG_ENOMSG.
+     * MSG_EXCEPT	    Using this flag in combination with a desiredmsgtype greater than 0 will cause the function
+     *                  to receive the first message that is not equal to desiredmsgtype.
+     * MSG_NOERROR	    If the message is longer than maxsize, setting this flag will truncate the message to
+     *                  maxsize and will not signal an error.
+     *
+     *
+     * @return bool
+     * @throws ServiceException
+     */
     public function receive($type, &$msgtype, $maxsize, &$data, $unserialize = true, $flags = 0, &$error = null)
     {
         if (!is_numeric($type) ||  $type < 0) {
-            throw MessageQueueException::invalidMessageType($type);
+            throw ServiceException::invalidMessageType($type);
         }
 
         return msg_receive($this->queue, $type, $msgtype, $maxsize, $data, $unserialize, $flags, $error);
@@ -156,12 +152,12 @@ class MessageQueue
 
         foreach($data as $key => $value) {
             if(!in_array($key, $validKeys)) {
-                MessageQueueException::invalidSetField($key, $validKeys);
+                ServiceException::invalidSetField($key, $validKeys);
             }
         }
 
         if (false !== $return = msg_set_queue($this->queue, $data)) {
-            MessageQueueException::failedToSetQueueInformation();
+            ServiceException::failedToSetQueueInformation();
         } else {
             return $return;
         }

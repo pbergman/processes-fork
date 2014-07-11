@@ -4,37 +4,35 @@
  * @copyright Philip Bergman
  */
 
-namespace PBergman\ProcessesFork;
+namespace PBergman\Fork;
 
-use PBergman\Semaphore\MessageQueue;
-use PBergman\Semaphore\Semaphore;
-use PBergman\Semaphore\SharedMemory;
+use PBergman\SystemV\IPC\Messages\Service as MessagesService;
+use PBergman\Fork\Work\WorkInterface;
+use PBergman\Fork\Helpers\ErrorHelper  as ErrorHandler;
+use PBergman\Fork\Helpers\OutputHelper as OutputHandler;
+use PBergman\Fork\Helpers\ExitHelper   as ExitHandler;
 
-/**
- * Class ForkManager
- *
- * @property    \SplObjectStorage   jobs
- *
- * @package     PBergman\ProcessesFork
- */
-class ForkManager
+class Manager
 {
     private $workers = 1;
     private $jobs;
     private $state;
-    private $exists = array();
     private $output;
+    private $childStats = array();
+
     const STATE_CHILD  = 1;
     const STATE_PARENT = 2;
 
     const QUEUE_STATE_TODO     = 1;
     const QUEUE_STATE_FINISHED = 2;
 
+
     public function __construct()
     {
-        $this->output = new OutputHandler();
+        $this->output = new Helpers\OutputHelper();
         $this->jobs   = new \SplObjectStorage();
         $this->state  = self::STATE_PARENT;
+        $this->pid    = posix_getpid();
     }
 
     /**
@@ -45,7 +43,7 @@ class ForkManager
      */
     public function run()
     {
-        $queue = new MessageQueue(ftok(__FILE__, 'm'), 0660);
+        $queue = new MessagesService(ftok(__FILE__, 'm'), 0660);
         $pids  = array();
         $max   = $this->jobs->count();
 
@@ -63,6 +61,13 @@ class ForkManager
                     break;
                 case 0:     // @child
                     $this->state = self::STATE_CHILD;
+
+                    $this->childStats[posix_getpid()] = array(
+                        'start_time' => microtime(true),
+                        'exit_code'  => 0,
+                        'id'         => $i,
+                    );
+
                     $this->startChild($queue, $i);
                     break;
                 default:    // @parent
@@ -76,59 +81,68 @@ class ForkManager
 
             $this->wait($pids);
 
-            /** @var ForkJobInterface $object */
+            /** @var WorkInterface $object */
             while($data = $queue->receive(self::QUEUE_STATE_FINISHED, $msgtype, 10000, $object, true, MSG_IPC_NOWAIT, $error)) {
-                    $object->setExitCode($this->exists[$object->getPid()]);
-                    $this->jobs->attach($object);
+
+                $object->setExitCode($this->childStats[$object->getPid()]['exit_code']);
+
+                $this->jobs->attach($object);
             }
 
-           $queue->remove();
+            $queue->remove();
 
         }
 
     }
 
 
-    private function startChild(MessageQueue $queue, $id)
+    private function startChild(MessagesService $queue, $id)
     {
-        /** Set custom error handling */
-        $eh = new ErrorHandler($this->output);
+        // Enable custom error handler
+        ErrorHandler::enable($this->output);
 
-        $this->output->debug('Spawning child', posix_getpid(), OutputHandler::PROCESS_CHILD);
-
-        /** @var ForkJobInterface $object */
+        /** @var WorkInterface $object */
         $queue->receive(self::QUEUE_STATE_TODO, $msgtype, 10000, $object);
 
-        /**
-         * Set some exit callback for when the child exists
-         */
-        $ex = new ExitRegister();
-        $ex->addCallback(function(ForkJobInterface &$object, MessageQueue $queue){
+        $this->output->debug(sprintf('Starting child %s', $object->getName()), posix_getpid(), OutputHandler::PROCESS_CHILD);
+
+        // Set pids
+        $object->setParentPid($this->pid)
+               ->setPid(posix_getpid());
+
+        // Set some exit callback for when the child exists
+        $exitHandler = new ExitHandler();
+        $exitHandler->addCallback(function(WorkInterface &$object, MessagesService $queue, $stats){
             if (null !== $error = error_get_last()) {
                 if ($error['type'] === E_ERROR) {
                     $object->setSuccess(false)
-                           ->setExitCode(255)
-                           ->setPid(posix_getpid())
-                           ->setError(sprintf("Fatal error: %s on line %s in file %s", $error['message'], $error['line'], $error['file']));
+                        ->setExitCode(255)
+                        ->setDuration((microtime(true) - $stats[$object->getPid()]['start_time']))
+                        ->setPid(posix_getpid())
+                        ->setUsage(memory_get_usage())
+                        ->setError(sprintf("Fatal error: %s on line %s in file %s", $error['message'], $error['line'], $error['file']));
                 }
             }
 
             $queue->send($object, self::QUEUE_STATE_FINISHED);
 
-        }, array(&$object, &$queue));
+        }, array(&$object, &$queue, $this->childStats));
 
-
+        // Try execute child process
         try{
             $object->execute();
-            $object->setPid(posix_getpid())
-                   ->postExecute();
+
+            $object->setDuration((microtime(true) - $this->childStats[$object->getPid()]['start_time']))
+                   ->setUsage(memory_get_usage());
 
             exit(0);
+
         } catch(\Exception $e) {
+
             $object->setSuccess(false)
                    ->setError($e->getMessage())
-                   ->setPid(posix_getpid())
-                   ->postExecute();
+                   ->setDuration((microtime(true) - $this->childStats[$object->getPid()]['start_time']))
+                   ->setUsage(memory_get_usage());
 
             exit($e->getCode());
         }
@@ -140,14 +154,14 @@ class ForkManager
      * them in the message queue so the child process
      * can pick them up when the are spawned
      *
-     * @param MessageQueue $queue
+     * @param MessagesService $queue
      */
-    private function setJobsToQueue(MessageQueue $queue)
+    private function setJobsToQueue(MessagesService $queue)
     {
         $this->jobs->rewind();
 
         while($this->jobs->valid()) {
-            /** @var ForkJobInterface $ob */
+            /** @var WorkInterface $ob */
             $id = $this->jobs->key();
             $ob = $this->jobs->current();
             $ob->setId($id);
@@ -180,8 +194,10 @@ class ForkManager
         while(array_sum($pids) >= $limit) {
 
             if($pid = pcntl_waitpid(0, $status)) {
-                $this->exists[$pid] = pcntl_wexitstatus($status);
-                $this->output->debug(sprintf('Child finished with exit code %s', pcntl_wexitstatus($status)), $pid);
+
+                $exit = pcntl_wexitstatus($status);
+                $this->childStats[$pid]['exit_code'] = $exit;
+                $this->output->debug(sprintf('Child finished with exit code %s', $exit), $pid);
             }
 
             $pids[$pid] = 0;
@@ -241,10 +257,10 @@ class ForkManager
     /**
      * add job to stack
      *
-     * @param   ForkJobInterface $job
+     * @param   WorkInterface $job
      * @return  $this
      */
-    public function addJob(ForkJobInterface $job)
+    public function addJob(WorkInterface $job)
     {
         $this->jobs->attach($job);
 

@@ -1,23 +1,25 @@
 <?php
 /**
+/**
  * @author    Philip Bergman <pbergman@live.nl>
  * @copyright Philip Bergman
  */
 
-namespace PBergman\Semaphore;
+namespace PBergman\SystemV\IPC\Messages;
+
 
 /**
- * Class MessageQueueException
+ * Class SystemVMessageException
  *
- * @package PBergman\Semaphore
+ * @package PBergman\SystemV\IPC\Messages
  */
-class MessageQueueException extends \Exception
+class ServiceException extends \Exception
 {
 
     /**
      * @param   mixed   $error
-     * @return  MessageQueueException
-     * @throws  MessageQueueException
+     * @return  ServiceException
+     * @throws  ServiceException
      */
     public static function failedToReceive($error)
     {
@@ -25,8 +27,8 @@ class MessageQueueException extends \Exception
     }
 
     /**
-     * @throws MessageQueueException
-     * @return  MessageQueueException
+     * @throws  ServiceException
+     * @return  ServiceException
      */
     public static function failedToSetQueueInformation()
     {
@@ -36,8 +38,8 @@ class MessageQueueException extends \Exception
     /**
      * @param   string   $field
      * @param   array    $all
-     * @return  MessageQueueException
-     * @throws  MessageQueueException
+     * @return  ServiceException
+     * @throws  ServiceException
      */
     public static function invalidSetField($field, array $all)
     {
@@ -47,8 +49,8 @@ class MessageQueueException extends \Exception
 
     /**
      * @param   mixed   $type
-     * @return  MessageQueueException
-     * @throws  MessageQueueException
+     * @return  ServiceException
+     * @throws  ServiceException
      */
     public static function invalidMessageType($type)
     {
@@ -58,8 +60,8 @@ class MessageQueueException extends \Exception
 
     /**
      * @param   mixed   $error
-     * @return  MessageQueueException
-     * @throws  MessageQueueException
+     * @return  ServiceException
+     * @throws  ServiceException
      */
     public static function failedToSend($error)
     {
@@ -68,8 +70,8 @@ class MessageQueueException extends \Exception
 
     /**
      * @param   mixed   $id
-     * @return  MessageQueueException
-     * @throws  MessageQueueException
+     * @return  ServiceException
+     * @throws  ServiceException
      */
     public static function failedToRemove($id)
     {
@@ -78,8 +80,8 @@ class MessageQueueException extends \Exception
 
     /**
      * @param   mixed   $key
-     * @return  MessageQueueException
-     * @throws  MessageQueueException
+     * @return  ServiceException
+     * @throws  ServiceException
      */
     public static function invalidKeyGiven($key)
     {

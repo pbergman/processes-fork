@@ -4,14 +4,14 @@
  * @copyright Philip Bergman
  */
 
-namespace PBergman\Semaphore;
+namespace PBergman\SystemV\IPC\Semaphore;
 
 /**
- * Class Semaphore
+ * Class Service
  *
- * @package PBergman\Semaphore
+ * @package PBergman\SystemV\IPC\Semaphore
  */
-class Semaphore
+class Service
 {
     private $id;
     private $acquired = false;
@@ -24,16 +24,16 @@ class Semaphore
      * @param int   $perm           The semaphore permissions. Actually this value is set only if the process finds it is the only process currently attached to the semaphore.
      * @param int   $auto_release   Specifies if the semaphore should be automatically released on request shutdown.
      *
-     * @throws SemaphoreException
+     * @throws ServiceException
      */
     public function __construct($key, $max_acquire = 1, $perm = 0666, $auto_release = 1)
     {
         if (!is_numeric($key)) {
-            throw SemaphoreException::invalidKeyGiven($key);
+            throw ServiceException::invalidKeyGiven($key);
         }
 
         if (false === $this->id = sem_get($key, $max_acquire, $perm, $auto_release)) {
-            throw SemaphoreException::couldNotCreateIdentifier();
+            throw ServiceException::couldNotCreateIdentifier();
         }
     }
 

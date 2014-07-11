@@ -5,10 +5,10 @@
 
 require_once 'vendor/autoload.php';
 
-use PBergman\ProcessesFork\AbstractForkJob;
-use PBergman\ProcessesFork\ForkManager;
+use PBergman\Fork\Work\AbstractWork;
+use PBergman\Fork\Manager;
 
-class job extends AbstractForkJob
+class job extends AbstractWork
 {
 
     /**
@@ -18,7 +18,7 @@ class job extends AbstractForkJob
      */
     public function execute()
     {
-        $sleep = rand(1,3);
+        $sleep = rand(5,10);
 //       aaa;
 //        aaa();
 //        printf("sleeping %s\n", $sleep);
@@ -60,8 +60,8 @@ for($i =0 ; $i < 10; $i++){
     $stack[] = new Job();
 }
 
-$fm = new ForkManager();
+$fm = new Manager();
 $fm->setWorkers(5)
-   ->setJobs($stack)
-   ->run();
+    ->setJobs($stack)
+    ->run();
 print_r($fm->getJobs());

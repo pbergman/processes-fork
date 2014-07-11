@@ -1,12 +1,17 @@
 <?php
 /**
- * @author    Philip Bergman <pbergman@live.nl>
- * @copyright Philip Bergman
+ * @author    Philip Bergman <philip@zicht.nl>
+ * @copyright Zicht Online <http://www.zicht.nl>
  */
 
-namespace PBergman\ProcessesFork;
+namespace PBergman\Fork\Work;
 
-interface ForkJobInterface
+/**
+ * Interface WorkInterface
+ *
+ * @package PBergman\Fork\Work
+ */
+interface WorkInterface
 {
 
     /**
@@ -17,11 +22,12 @@ interface ForkJobInterface
     public function execute();
 
     /**
-     * will run after execute to set some debug params
+     * set execution duration of script
      *
-     * @return mixed
+     * @param  int   $duration
+     * @return $this
      */
-    public function postExecute();
+    public function setDuration($duration);
 
     /**
      * returns duration from script
@@ -46,7 +52,15 @@ interface ForkJobInterface
     public function setExitCode($exitCode);
 
     /**
-     * returns usage of script
+     * sets memory usage of script
+     *
+     * @param  int $usage
+     * @return $this
+     */
+    public function setUsage($usage);
+
+    /**
+     * returns memory usage of script
      *
      * @return int
      */
@@ -54,14 +68,29 @@ interface ForkJobInterface
 
 
     /**
-     * return pid from child process
+     * return parent pid from process
+     *
+     * @return mixed
+     */
+    public function getParentPid();
+
+    /**
+     * set parent pid from process
+     *
+     * @param  int  $pid
+     * @return $this
+     */
+    public function setParentPid($pid);
+
+    /**
+     * return pid from process
      *
      * @return mixed
      */
     public function getPid();
 
     /**
-     * set pid from child process
+     * set pid from process
      *
      * @param  int  $pid
      * @return $this
@@ -83,7 +112,6 @@ interface ForkJobInterface
      */
     public function setId($id);
 
-
     /**
      * @return int
      */
@@ -93,6 +121,14 @@ interface ForkJobInterface
      * @return bool
      */
     public function isSuccess();
+
+    /**
+     * will set true is script was run without errors
+     *
+     * @param  bool $success
+     * @return $this
+     */
+    public function setSuccess($success);
 
     /**
      * set exceptions catch from running execute
@@ -108,12 +144,8 @@ interface ForkJobInterface
     public function getError();
 
     /**
-     * @param  bool $success
-     * @return $this
-     */
-    public function setSuccess($success);
-
-    /**
+     * will return result from script
+     *
      * @return mixed
      */
     public function getResult();

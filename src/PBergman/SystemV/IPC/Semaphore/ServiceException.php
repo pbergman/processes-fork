@@ -1,22 +1,21 @@
 <?php
 /**
- * @author    Philip Bergman <pbergman@live.nl>
- * @copyright Philip Bergman
+ * @author    Philip Bergman <philip@zicht.nl>
+ * @copyright Zicht Online <http://www.zicht.nl>
  */
 
-namespace PBergman\Semaphore;
+namespace PBergman\SystemV\IPC\Semaphore;
 
 /**
- * Class SemaphoreException
+ * Class ServiceException
  *
- * @package PBergman\Semaphore
+ * @package PBergman\SystemV\IPC\Semaphore
  */
-class SemaphoreException extends \Exception
+class ServiceException extends \Exception
 {
-
     /**
-     * @return SemaphoreException
-     * @throws SemaphoreException
+     * @return ServiceException
+     * @throws ServiceException
      */
     public static function couldNotCreateIdentifier()
     {
@@ -24,8 +23,8 @@ class SemaphoreException extends \Exception
     }
 
     /**
-     * @return SemaphoreException
-     * @throws SemaphoreException
+     * @return ServiceException
+     * @throws ServiceException
      */
     public static function couldNotAcquireSemaphore()
     {
@@ -33,8 +32,8 @@ class SemaphoreException extends \Exception
     }
 
     /**
-     * @return SemaphoreException
-     * @throws SemaphoreException
+     * @return ServiceException
+     * @throws ServiceException
      */
     public static function couldNotReleaseSemaphore()
     {
@@ -42,8 +41,8 @@ class SemaphoreException extends \Exception
     }
 
     /**
-     * @return SemaphoreException
-     * @throws SemaphoreException
+     * @return ServiceException
+     * @throws ServiceException
      */
     public static function couldNotRemoveSemaphore()
     {
@@ -52,8 +51,8 @@ class SemaphoreException extends \Exception
 
     /**
      * @param   mixed   $key
-     * @return  SemaphoreException
-     * @throws  SemaphoreException
+     * @return  ServiceException
+     * @throws  ServiceException
      */
     public static function invalidKeyGiven($key)
     {

@@ -4,27 +4,30 @@
  * @copyright Philip Bergman
  */
 
-namespace PBergman\Semaphore;
+namespace PBergman\SystemV\IPC\SharedMemory;
+
+use PBergman\SystemV\IPC\Semaphore\Service as SemaphoreService;
+use PBergman\SystemV\IPC\Semaphore\ServiceException as SemaphoreException;
 
 /**
- * Class SharedMemory
+ * Class Service
  *
- * @property    Semaphore     sem
- * @package     PBergman\Semaphore
+ * @package PBergman\SystemV\IPC\SharedMemory
  */
-class SharedMemory
+class Service
 {
     protected $id;
     protected $sem;
 
     /**
-     * @param int       $id         A numeric shared memory segment ID
-     * @param Semaphore $semaphore
+     * @param   int               $id         A numeric shared memory segment ID
+     * @param   SemaphoreService  $semaphore
+     * @throws  ServiceException
      */
-    public function __construct($id, Semaphore $semaphore)
+    public function __construct($id, SemaphoreService $semaphore)
     {
         if (!is_numeric($id)) {
-            SharedMemoryException::invalidKeyGiven($id);
+            ServiceException::invalidKeyGiven($id);
         } else {
             $this->id  = $id;
             $this->sem = $semaphore;
@@ -54,7 +57,6 @@ class SharedMemory
      * helper free lock from semaphore
      *
      * @return  bool
-     * @throws  SemaphoreException
      * @throws  SemaphoreException
      */
     private function release()
@@ -95,7 +97,6 @@ class SharedMemory
      * @return bool
      *
      * @throws SemaphoreException
-     * @throws SharedMemoryException
      */
     public function put($key, $value)
     {
@@ -222,5 +223,4 @@ class SharedMemory
 
         return $return;
     }
-
 }

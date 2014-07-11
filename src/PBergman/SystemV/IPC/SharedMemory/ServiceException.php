@@ -1,22 +1,22 @@
 <?php
 /**
- * @author    Philip Bergman <pbergman@live.nl>
- * @copyright Philip Bergman
+ * @author    Philip Bergman <philip@zicht.nl>
+ * @copyright Zicht Online <http://www.zicht.nl>
  */
 
-namespace PBergman\Semaphore;
+namespace PBergman\SystemV\IPC\SharedMemory;
 
 /**
- * Class SharedMemoryException
+ * Class ServiceException
  *
- * @package PBergman\Semaphore
+ * @package PBergman\SystemV\IPC\SharedMemory
  */
-class SharedMemoryException extends \Exception
+class ServiceException extends \Exception
 {
     /**
      * @param   mixed   $key
-     * @return  SharedMemoryException
-     * @throws  SharedMemoryException
+     * @return  ServiceException
+     * @throws  ServiceException
      */
     public static function invalidKeyGiven($key)
     {
@@ -24,8 +24,8 @@ class SharedMemoryException extends \Exception
     }
 
     /**
-     * @return  SharedMemoryException
-     * @throws  SharedMemoryException
+     * @return  ServiceException
+     * @throws  ServiceException
      */
     public static function couldNotSaveVar()
     {
@@ -34,8 +34,8 @@ class SharedMemoryException extends \Exception
 
     /**
      * @param   mixed   $id
-     * @return  SharedMemoryException
-     * @throws  SharedMemoryException
+     * @return  ServiceException
+     * @throws  ServiceException
      */
     public static function couldNotOpenSegment($id)
     {
