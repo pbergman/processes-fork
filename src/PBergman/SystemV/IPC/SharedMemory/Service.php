@@ -24,7 +24,7 @@ class Service
      * @param   SemaphoreService  $semaphore
      * @throws  ServiceException
      */
-    public function __construct($id, SemaphoreService $semaphore)
+    public function __construct($id, SemaphoreService $semaphore = null)
     {
         if (!is_numeric($id)) {
             ServiceException::invalidKeyGiven($id);
@@ -35,38 +35,48 @@ class Service
     }
 
     /**
-     * helper to set lock with semaphore
+     * helper to set lock with semaphore,
+     * if is set else will return true
      *
      * @return bool
      * @throws SemaphoreException
      */
     private function lock()
     {
-        $return = false;
+        if (!is_null($this->sem)) {
+            $return = false;
 
-        if (false === $this->sem->isAcquired()) {
-            if (false === $return = $this->sem->acquire()) {
-                throw SemaphoreException::couldNotAcquireSemaphore();
+            if (false === $this->sem->isAcquired()) {
+                if (false === $return = $this->sem->acquire()) {
+                    throw SemaphoreException::couldNotAcquireSemaphore();
+                }
             }
+        } else {
+            $return = true;
         }
 
         return $return;
     }
 
     /**
-     * helper free lock from semaphore
+     * helper free lock from semaphore,
+     * if is set else will return true
      *
      * @return  bool
      * @throws  SemaphoreException
      */
     private function release()
     {
-        $return = false;
+        if (!is_null($this->sem)) {
+            $return = false;
 
-        if ($this->sem->isAcquired()) {
-            if (false === $return = $this->sem->release()) {
-                throw SemaphoreException::couldNotReleaseSemaphore();
+            if ($this->sem->isAcquired()) {
+                if (false === $return = $this->sem->release()) {
+                    throw SemaphoreException::couldNotReleaseSemaphore();
+                }
             }
+        } else {
+            $return = true;
         }
 
         return $return;
@@ -222,5 +232,23 @@ class Service
         }
 
         return $return;
+    }
+
+    /**
+     * @return \PBergman\SystemV\IPC\Semaphore\Service
+     */
+    public function getSem()
+    {
+        return $this->sem;
+    }
+
+    /**
+     * @param   \PBergman\SystemV\IPC\Semaphore\Service $sem
+     * @return  $this;
+     */
+    public function setSem(SemaphoreService $sem)
+    {
+        $this->sem = $sem;
+        return $this;
     }
 }
