@@ -11,17 +11,18 @@ namespace PBergman\Fork\Work;
  *
  * @package PBergman\Fork\Work
  */
-abstract class AbstractWork implements WorkInterface
+abstract class AbstractWork
 {
-    protected $ppid;
-    protected $pid;
-    protected $exitCode = 0;
-    protected $usage;
-    protected $duration;
-    protected $id;
-    protected $success = true;
-    protected $error;
-    protected $result;
+    private $ppid;
+    private $pid;
+    private $exitCode = 0;
+    private $usage;
+    private $duration;
+    private $id;
+    private $success = true;
+    private $error;
+    private $result;
+    private $timeout;
 
     /**
      * the main method that is called
@@ -240,5 +241,28 @@ abstract class AbstractWork implements WorkInterface
     public function getUsage()
     {
         return $this->usage;
+    }
+
+    /**
+     * @return int|null
+     */
+    public function getTimeout()
+    {
+        return $this->timeout;
+    }
+
+    /**
+     * set timeout of running script in seconds
+     *
+     * @param   int $timeout
+     * @return  $this
+     */
+    public function setTimeout($timeout)
+    {
+        if (is_numeric($timeout)) {
+            $this->timeout = $timeout;
+        }
+
+        return $this;
     }
 }
