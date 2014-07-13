@@ -16,8 +16,6 @@ use \PBergman\SystemV\IPC\Semaphore\Service as SemaphoreService;
  */
 class ErrorHelper
 {
-    /** @var SemaphoreService  */
-    public static $semaphore;
     /**
      * error mapping
      *
@@ -46,35 +44,26 @@ class ErrorHelper
      * set custom error handler
      *
      * @param OutputHelper      $output
-     * @param SemaphoreService  $semaphore
      * @param null              $types
      * @param bool              $backtrace
      */
-    static function enable(OutputHelper $output, SemaphoreService $semaphore = null, $types = null, $backtrace = true)
+    static function enable(OutputHelper $output, $types = null, $backtrace = true)
     {
         if (is_null($types)) {
             $types = E_ALL | E_STRICT;
         }
 
-        static::$semaphore = $semaphore;
-
         error_reporting(0);
 
-        set_error_handler(function($errno, $errstr, $errfile, $errline) use ($output, $semaphore, $backtrace) {
+        set_error_handler(function($errno, $errstr, $errfile, $errline) use ($output, $backtrace) {
 
-//            if (!is_null(static::$semaphore)){
-//                static::$semaphore->acquire();
-//            }
+            $caller = ($errno === E_USER_ERROR) ? OutputHelper::PROCESS_ERROR : OutputHelper::PROCESS_WARNING;
 
-            $output->debug(sprintf("%s: %s on line %s in file %s", static::$errors[$errno], $errstr, $errline, $errfile), posix_getpid(), OutputHelper::PROCESS_WARNING);
+            $output->debug(sprintf("%s: %s on line %s in file %s", static::$errors[$errno], $errstr, $errline, $errfile), posix_getpid(), $caller);
 
             if ($backtrace) {
-                static::printBackTrace($output);
+                static::printBackTrace($output, $caller);
             }
-//
-//            if (!is_null(static::$semaphore)){
-//                static::$semaphore->release();
-//            }
 
         }, $types);
 
@@ -85,7 +74,7 @@ class ErrorHelper
      *
      * @param OutputHelper $output
      */
-    static function printBackTrace(OutputHelper $output)
+    static function printBackTrace(OutputHelper $output, $caller)
     {
         $backtrace[] = "Backtrace:";
 
@@ -99,7 +88,7 @@ class ErrorHelper
 
         }
 
-        $output->debug(implode("\n", $backtrace), posix_getpid(), OutputHelper::PROCESS_WARNING );
+        $output->debug(implode("\n", $backtrace), posix_getpid(), $caller);
     }
 
     /**

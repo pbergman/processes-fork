@@ -48,7 +48,7 @@ class Controller
     public function run($ppid)
     {
         // Enable custom error handler
-        ErrorHandler::enable($this->output);//, new SemaphoreService(ftok(__FILE__, 'd'), 1, 0660, 0));
+        ErrorHandler::enable($this->output);
         /** @var AbstractWork $object */
         $this->queue->receive(Manager::QUEUE_STATE_TODO, $msgtype, 10000, $object);
 
@@ -119,7 +119,7 @@ class Controller
         if (null !== $timeout = $object->getTimeout()) {
                 pcntl_alarm($timeout);
                 pcntl_signal(SIGALRM, function() use ($timeout, &$object){
-                    $message = sprintf('timeout exceeded: %s seconds', $timeout);
+                    $message = sprintf('timeout exceeded: %s second(s)', $timeout);
                     $object->setSuccess(false)->setError($message);
                     trigger_error($message, E_USER_ERROR);
                 });
