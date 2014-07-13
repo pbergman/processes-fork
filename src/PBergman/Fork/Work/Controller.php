@@ -13,6 +13,8 @@ use PBergman\Fork\Helpers\OutputHelper as OutputHandler;
 use PBergman\Fork\Helpers\ErrorHelper  as ErrorHandler;
 use PBergman\Fork\Helpers\ExitHelper   as ExitHandler;
 
+declare(ticks = 1);
+
 /**
  * Class Controller
  *
@@ -55,16 +57,11 @@ class Controller
         // Set pids
         $object->setParentPid($ppid)->setPid(posix_getpid());
 
-
-        $this->setupExit($object);
-
-
+        // Setup exit function and check timeout
+        $this->setupExit($object)->checkTimeOut($object);
 
         // Try execute child process
         try {
-            trigger_error(sprintf('timeout exceeded: %s', 10), E_USER_ERROR);
-
-            $this->setTimeOut($object);
 
             $object->execute();
             $object->setDuration((microtime(true) - $this->stats[$object->getPid()]['start_time']))
@@ -117,15 +114,14 @@ class Controller
         return $this;
     }
 
-    protected function setTimeOut(AbstractWork &$object)
+    protected function checkTimeOut(AbstractWork &$object)
     {
         if (null !== $timeout = $object->getTimeout()) {
-                declare(ticks = 1);
                 pcntl_alarm($timeout);
                 pcntl_signal(SIGALRM, function() use ($timeout, &$object){
-                    $object->setSuccess(false);
-                    $object->setError(sprintf('timeout exceeded: %s', $timeout));
-                    trigger_error(sprintf('timeout exceeded: %s', $timeout), E_USER_ERROR);
+                    $message = sprintf('timeout exceeded: %s seconds', $timeout);
+                    $object->setSuccess(false)->setError($message);
+                    trigger_error($message, E_USER_ERROR);
                 });
         }
 

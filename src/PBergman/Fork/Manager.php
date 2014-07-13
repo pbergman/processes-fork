@@ -7,12 +7,9 @@
 namespace PBergman\Fork;
 
 use PBergman\Fork\Work\Controller;
-use \PBergman\SystemV\IPC\Semaphore\Service as SemaphoreService;
+use PBergman\SystemV\IPC\Semaphore\Service as SemaphoreService;
 use PBergman\SystemV\IPC\Messages\Service as MessagesService;
 use PBergman\Fork\Work\AbstractWork;
-use PBergman\Fork\Helpers\ErrorHelper  as ErrorHandler;
-use PBergman\Fork\Helpers\OutputHelper as OutputHandler;
-use PBergman\Fork\Helpers\ExitHelper   as ExitHandler;
 
 class Manager
 {
@@ -29,7 +26,6 @@ class Manager
     const QUEUE_STATE_TODO     = 1;
     const QUEUE_STATE_FINISHED = 2;
 
-
     public function __construct()
     {
         $this->output = new Helpers\OutputHelper();
@@ -37,7 +33,6 @@ class Manager
         $this->state  = self::STATE_PARENT;
         $this->pid    = posix_getpid();
         $this->pids   = array();
-
     }
 
 
@@ -70,7 +65,6 @@ class Manager
         for($i = 0; $i < $max; ++$i) {
 
            $sem->acquire();
-//            pcntl_signal_dispatch();
 
            $this->checkRunningChildren($pids);
 
@@ -122,11 +116,6 @@ class Manager
             // Cleanup!
             $queue->remove();
             $sem->remove();
-
-            if (!is_null(ErrorHandler::$semaphore)) {
-                ErrorHandler::$semaphore->remove();
-            }
-
         }
 
     }
