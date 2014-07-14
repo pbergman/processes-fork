@@ -6,9 +6,6 @@
 
 namespace PBergman\Fork\Helpers;
 
-use \PBergman\SystemV\IPC\Semaphore\Service as SemaphoreService;
-
-
 /**
  * Class ErrorHelper
  *
@@ -59,11 +56,14 @@ class ErrorHelper
 
             $caller = ($errno === E_USER_ERROR) ? OutputHelper::PROCESS_ERROR : OutputHelper::PROCESS_WARNING;
 
-            $output->debug(sprintf("%s: %s on line %s in file %s", static::$errors[$errno], $errstr, $errline, $errfile), posix_getpid(), $caller);
+            $output->addToBuffer(sprintf("%s: %s on line %s in file %s", static::$errors[$errno], $errstr, $errline, $errfile));
 
             if ($backtrace) {
                 static::printBackTrace($output, $caller);
             }
+
+            $output->printfBuffer(posix_getpid(), $caller);
+            $output->resetBuffer();
 
         }, $types);
 
@@ -73,22 +73,18 @@ class ErrorHelper
      * print backtrace
      *
      * @param OutputHelper $output
+     * @param string       $caller
      */
     static function printBackTrace(OutputHelper $output, $caller)
     {
-        $backtrace[] = "Backtrace:";
-
         foreach (debug_backtrace() as $k => $v) {
 
             array_walk($v['args'], function (&$item, $key) {
                 $item = var_export($item, true);
             });
 
-            $backtrace[] = sprintf("\t#%d %s(%s): %s(%s)", $k,  $v['file'], $v['line'], (isset($v['class']) ? $v['class'] . '->' : null), $v['function'], implode(', ', $v['args']));
-
+            $output->addToBuffer(sprintf("#%d %s(%s): %s(%s)", $k,  $v['file'], $v['line'], (isset($v['class']) ? $v['class'] . '->' : null), $v['function'], implode(', ', $v['args'])));
         }
-
-        $output->debug(implode("\n", $backtrace), posix_getpid(), $caller);
     }
 
     /**

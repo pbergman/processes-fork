@@ -50,23 +50,11 @@ class Manager
         $sem   = new SemaphoreService(ftok(__FILE__, 's'), $this->workers, 0660, false);
         $this->setJobsToQueue($queue);
 
-//        pcntl_signal(SIGCHLD, function($signal){
-//            switch($signal) {
-//                case SIGCHLD:
-//                    while ($pid = pcntl_waitpid(0, $status) != -1) {
-//                        $status = pcntl_wexitstatus($status);
-//                        echo "Child $pid completed\n";
-//                    }
-//                    exit;
-//            }
-//        });
-
-
         for($i = 0; $i < $max; ++$i) {
 
            $sem->acquire();
 
-           $this->checkRunningChildren($pids);
+            $this->checkRunningChildren($pids);
 
             $pid = pcntl_fork();
 
@@ -77,13 +65,7 @@ class Manager
                 case 0:     // @child
                     $this->state = self::STATE_CHILD;
 
-                    $this->stats[posix_getpid()] = array(
-                        'start_time' => microtime(true),
-                        'exit_code'  => 0,
-                        'id'         => $i,
-                    );
-
-                    $controller = new Controller($this->output, $queue, $sem, $this->stats);
+                    $controller = new Controller($this->output, $queue, $sem);
                     $controller->run($this->pid);
 
                     break;
@@ -109,8 +91,16 @@ class Manager
              * @var AbstractWork $object
              */
             while($data = $queue->receive(self::QUEUE_STATE_FINISHED, $msgtype, 10000, $object, true, MSG_IPC_NOWAIT, $error)) {
+
                 $object->setExitCode($this->stats[$object->getPid()]['exit_code']);
-                $this->jobs->attach($object);
+
+                // Check for exit errors
+               if (false !== $this->stats[$object->getPid()]['error']) {
+                        $object->setSuccess(false)
+                               ->setError($this->stats[$object->getPid()]['error_message']);
+               }
+
+               $this->jobs->attach($object);
             }
 
             // Cleanup!
@@ -164,9 +154,33 @@ class Manager
             foreach($pids as $pid => &$isRunning) {
                 if ($isRunning === 1) {
                     if (pcntl_waitpid($pid, $status, WNOHANG | WUNTRACED)) {
+
+                        if (pcntl_wifstopped($status)) {
+
+                            $this->stats[$pid] = array(
+                                'error'         => true,
+                                'error_message' => sprintf('Signal: %s caused this child to stop.',  pcntl_wstopsig($status)),
+                                'exit_code'     => null,
+                            );
+
+                        } elseif(pcntl_wifsignaled($status)) {
+
+                            $this->stats[$pid] = array(
+                                'error'         => true,
+                                'error_message' => sprintf('Signal: %s caused this child to exit', pcntl_wtermsig($status)),
+                                'exit_code'     => pcntl_wexitstatus($status),
+                            );
+
+                        } else {
+
+                           $this->stats[$pid] = array(
+                               'error'         => false,
+                               'error_message' => null,
+                               'exit_code'     => pcntl_wexitstatus($status),
+                           );
+                        }
+
                         $isRunning = 0;
-                        $exit = pcntl_wexitstatus($status);
-                        $this->stats[$pid]['exit_code'] = $exit;
                     }
                 }
             }

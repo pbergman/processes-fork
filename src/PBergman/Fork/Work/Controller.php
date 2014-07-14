@@ -35,14 +35,14 @@ class Controller
      * @param OutputHandler     $output
      * @param MessagesService   $queue
      * @param SemaphoreService  $sem
-     * @param array             $stats
      */
-    public function __construct(OutputHandler $output, MessagesService $queue, SemaphoreService $sem, $stats)
+    public function __construct(OutputHandler $output, MessagesService $queue, SemaphoreService $sem)
     {
+        // For debugging set start time
+        $this->start  = microtime(true);
         $this->queue  = $queue;
         $this->output = $output;
         $this->sem    = $sem;
-        $this->stats  = $stats;
     }
 
     public function run($ppid)
@@ -64,7 +64,7 @@ class Controller
         try {
 
             $object->execute();
-            $object->setDuration((microtime(true) - $this->stats[$object->getPid()]['start_time']))
+            $object->setDuration((microtime(true) - $this->start))
                    ->setUsage(memory_get_usage());
 
             exit(0);
@@ -73,7 +73,7 @@ class Controller
 
             $object->setSuccess(false)
                 ->setError($e->getMessage())
-                ->setDuration((microtime(true) - $this->stats[$object->getPid()]['start_time']))
+                ->setDuration((microtime(true) - $this->start))
                 ->setUsage(memory_get_usage());
 
             exit($e->getCode());
@@ -83,20 +83,21 @@ class Controller
     /**
      * will setup some on exit function for this process
      *
-     * @param AbstractWork $object
-     * @return $this
+     * @param   AbstractWork  $object
+     *
+     * @return  $this
      */
     protected function setupExit(AbstractWork $object)
     {
         $exitHandler = new ExitHandler();
         // Handling fatal errors and save object back to message queue
-        $exitHandler->addCallback(function(AbstractWork $object, MessagesService $queue, $stats){
+        $exitHandler->addCallback(function(AbstractWork $object, MessagesService $queue, $startTime){
 
                 if (null !== $error = error_get_last()) {
                     if ($error['type'] === E_ERROR) {
                         $object->setSuccess(false)
                             ->setExitCode(255)
-                            ->setDuration((microtime(true) - $stats[$object->getPid()]['start_time']))
+                            ->setDuration((microtime(true) - $startTime))
                             ->setPid(posix_getpid())
                             ->setUsage(memory_get_usage())
                             ->setError(sprintf("Fatal error: %s on line %s in file %s", $error['message'], $error['line'], $error['file']));
@@ -105,7 +106,7 @@ class Controller
 
                 $queue->send($object, Manager::QUEUE_STATE_FINISHED);
 
-        }, array($object, $this->queue, &$this->stats))
+        }, array($object, $this->queue, $this->start))
         // Debug printing
         ->addCallback(function(OutputHandler $output){ $output->debug('Finished', posix_getpid(), OutputHandler::PROCESS_CHILD); }, array($this->output))
         // Release semaphore
@@ -114,13 +115,22 @@ class Controller
         return $this;
     }
 
+    /**
+     * will setup timeout
+     *
+     * @param AbstractWork $object
+     * @return $this
+     */
     protected function checkTimeOut(AbstractWork &$object)
     {
         if (null !== $timeout = $object->getTimeout()) {
                 pcntl_alarm($timeout);
                 pcntl_signal(SIGALRM, function() use ($timeout, &$object){
                     $message = sprintf('timeout exceeded: %s second(s)', $timeout);
-                    $object->setSuccess(false)->setError($message);
+
+                    $object->setSuccess(false)
+                           ->setError($message);
+
                     trigger_error($message, E_USER_ERROR);
                 });
         }
