@@ -11,20 +11,20 @@ it can happen that the message queue (IPC) is set to low, and there for the appl
 this can be fixed by setting msgmax, msgmnb
 
 [ref](https://access.redhat.com/articles/15423):
-msgmni: The number of IPC message queue resources allowed (by default, 16).
-msgmnb: The size of each message (by default, 8,192 bytes).
-msgmax: The maximum total size of the messages in a queue (by default, 16,384 byte...
++ msgmni: The number of IPC message queue resources allowed (by default, 16). 
++ msgmnb: The size of each message (by default, 8,192 bytes).
++ msgmax: The maximum total size of the messages in a queue (by default, 16,384 byte...
 
 
-to set permanently
+to set permanently:
 
-echo "kernel.msgmax=536870912" >>  /etc/sysctl.conf
-echo "kernel.msgmnb=536870912" >>  /etc/sysctl.conf
++ echo "kernel.msgmax=536870912" >>  /etc/sysctl.conf
++ echo "kernel.msgmnb=536870912" >>  /etc/sysctl.conf
 
 or configure at runtime:
 
-sysctl -w kernel.msgmax=536870912
-sysctl -w kernel.msgmnb=536870912
++ sysctl -w kernel.msgmax=536870912
++ sysctl -w kernel.msgmnb=536870912
 
 Usage
 =====
