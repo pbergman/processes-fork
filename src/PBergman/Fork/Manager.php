@@ -61,7 +61,7 @@ class Manager
             $work->setParentPid(posix_getpid());
 
             $sem->acquire();
-            $this->checkRunningChildren($pids, $queue);
+            $this->sync($pids, $queue);
 
             $pid = pcntl_fork();
 
@@ -88,7 +88,7 @@ class Manager
 
             // Wait for children.....
             while(array_sum($pids) >= 1) {
-                $this->checkRunningChildren($pids, $queue);
+                $this->sync($pids, $queue);
             }
 
             ksort($this->finishedJobs);
@@ -119,7 +119,7 @@ class Manager
      * @param array             $pids
      * @param MessagesService   $queue
      */
-    private function checkRunningChildren(&$pids, MessagesService $queue)
+    private function sync(&$pids, MessagesService $queue)
     {
         // Make extra loop so we pick up children
         // finished closely after each other
