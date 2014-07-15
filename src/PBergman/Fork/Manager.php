@@ -27,9 +27,6 @@ class Manager
     const STATE_CHILD  = 1;
     const STATE_PARENT = 2;
 
-    const QUEUE_STATE_TODO     = 1;
-    const QUEUE_STATE_FINISHED = 2;
-
     public function __construct(Helpers\OutputHelper $output = null)
     {
         if (is_null($output)) {
