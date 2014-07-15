@@ -6,6 +6,8 @@
 
 namespace PBergman\Fork\Work;
 
+use PBergman\Fork\Helpers\OutputHelper as OutputHandler;
+
 /**
  * Class AbstractWork
  *
@@ -13,23 +15,32 @@ namespace PBergman\Fork\Work;
  */
 abstract class AbstractWork
 {
+    /** @var int */
     private $ppid;
+    /** @var int */
     private $pid;
+    /** @var int  */
     private $exitCode = 0;
+    /** @var int */
     private $usage;
+    /** @var int */
     private $duration;
-    private $id;
+    /** @var bool  */
     private $success = true;
+    /** @var  string */
     private $error;
+    /** @var mixed */
     private $result;
+    /** @var  int */
     private $timeout;
 
     /**
      * the main method that is called
      *
+     * @param  OutputHandler    $output
      * @return mixed
      */
-    abstract public function execute();
+    abstract public function execute(OutputHandler $output);
 
     /**
      * a name identifier for logs
@@ -112,27 +123,6 @@ abstract class AbstractWork
         $this->pid = $pid;
 
         return $this;
-    }
-
-    /**
-     * set id to reference to object storage
-     *
-     * @param  int  $id
-     * @return $this
-     */
-    public function setId($id)
-    {
-        $this->id = $id;
-
-        return $this;
-    }
-
-    /**
-     * @return int
-     */
-    public function getId()
-    {
-        return $this->id;
     }
 
     /**
