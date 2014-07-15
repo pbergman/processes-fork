@@ -10,10 +10,10 @@ it can happen that the message queue (IPC) is set to low, and there for the appl
 
 this can be fixed by setting msgmax, msgmnb
 
-[ref](https://access.redhat.com/articles/15423): 
-msgmni: The number of IPC message queue resources allowed (by default, 16). 
-msgmnb: The size of each message (by default, 8,192 bytes). 
-msgmax: The maximum total size of the messages in a queue (by default, 16,384 byte... 
+[ref](https://access.redhat.com/articles/15423): <br>
+msgmni: The number of IPC message queue resources allowed (by default, 16).  <br> 
+msgmnb: The size of each message (by default, 8,192 bytes).   <br>
+msgmax: The maximum total size of the messages in a queue (by default, 16,384 byte...   <br>
 
 
 to set permanently
