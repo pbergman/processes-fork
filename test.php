@@ -7,31 +7,31 @@ require_once 'vendor/autoload.php';
 
 use PBergman\Fork\Work\AbstractWork;
 use PBergman\Fork\Manager;
+use PBergman\Fork\Helpers\OutputHelper as OutputHandler;
+
 
 class job extends AbstractWork
 {
 
+//    public function __construct()
+//    {
+//        $this->setTimeout(2);
+//    }
+
     /**
      * the main method that is called
      *
+     * @param  OutputHandler    $output
      * @return mixed
      */
-    public function execute()
+    public function execute(OutputHandler $output)
     {
-        $sleep = rand(5,10);
+
+        $sleep = rand(1,5);
 //       aaa;
 //        aaa();
-//        printf("sleeping %s\n", $sleep);
+//        $output->write(sprintf("sleeping %s", $sleep));
         sleep($sleep);
-    }
-
-    /**
-     * returns duration from script
-     * @return int
-     */
-    public function getDuration()
-    {
-        return 10;
     }
 
     /**
