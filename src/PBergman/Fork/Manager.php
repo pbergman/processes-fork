@@ -13,12 +13,16 @@ use PBergman\Fork\Work\AbstractWork;
 
 class Manager
 {
-
+    /** @var int  */
     private $workers = 1;
+    /** @var \SplObjectStorage  */
     private $jobs;
+    /** @var int  */
     private $state;
+    /** @var \PBergman\Fork\Helpers\OutputHelper  */
     private $output;
-    private $stats = array();
+    /** @var array  */
+    private $finishedJobs = array();
 
     const STATE_CHILD  = 1;
     const STATE_PARENT = 2;
@@ -32,7 +36,6 @@ class Manager
         $this->jobs   = new \SplObjectStorage();
         $this->state  = self::STATE_PARENT;
         $this->pid    = posix_getpid();
-        $this->pids   = array();
     }
 
 
@@ -46,15 +49,19 @@ class Manager
     {
         $queue = new MessagesService(ftok(__FILE__, 'm'), 0660);
         $pids  = array();
-        $max   = $this->jobs->count();
         $sem   = new SemaphoreService(ftok(__FILE__, 's'), $this->workers, 0660, false);
-        $this->setJobsToQueue($queue);
 
-        for($i = 0; $i < $max; ++$i) {
+        $this->jobs->rewind();
 
-           $sem->acquire();
+        while($this->jobs->valid()) {
 
-            $this->checkRunningChildren($pids);
+            /** @var AbstractWork $ob */
+            $work = $this->jobs->current();
+            // For stack reference
+            $work->setParentPid(posix_getpid());
+
+            $sem->acquire();
+            $this->checkRunningChildren($pids, $queue);
 
             $pid = pcntl_fork();
 
@@ -64,44 +71,33 @@ class Manager
                     break;
                 case 0:     // @child
                     $this->state = self::STATE_CHILD;
-
-                    $controller = new Controller($this->output, $queue, $sem);
-                    $controller->run($this->pid);
-
+                    $this->jobs  = null;
+                    $controller  = new Controller($this->output, $queue, $sem);
+                    $controller->run($work);
                     break;
                 default:    // @parent
-                    $this->pids[$pid] = 1;
                     $pids[$pid] = 1;
             }
 
-        }
 
+            $this->jobs->next();
+            $this->jobs->detach($work);
+        }
 
         if ($this->state === self::STATE_PARENT) {
 
             // Wait for children.....
             while(array_sum($pids) >= 1) {
-                $this->checkRunningChildren($pids);
+                $this->checkRunningChildren($pids, $queue);
             }
 
-            /**
-             * fetch job back from message queue, add
-             * exit code and put back into object storage
-             *
-             * @var AbstractWork $object
-             */
-            while($data = $queue->receive(self::QUEUE_STATE_FINISHED, $msgtype, 10000, $object, true, MSG_IPC_NOWAIT, $error)) {
+            ksort($this->finishedJobs);
 
-                $object->setExitCode($this->stats[$object->getPid()]['exit_code']);
-
-                // Check for exit errors
-               if (false !== $this->stats[$object->getPid()]['error']) {
-                        $object->setSuccess(false)
-                               ->setError($this->stats[$object->getPid()]['error_message']);
-               }
-
-               $this->jobs->attach($object);
+            foreach ($this->finishedJobs as  $job) {
+                $this->jobs->attach($job);
             }
+
+            $this->jobs->rewind();
 
             // Cleanup!
             $queue->remove();
@@ -109,30 +105,6 @@ class Manager
         }
 
     }
-
-    /**
-     * will get objects from object storage and place
-     * them in the message queue so the child process
-     * can pick them up when the are spawned
-     *
-     * @param MessagesService $queue
-     */
-    private function setJobsToQueue(MessagesService $queue)
-    {
-        $this->jobs->rewind();
-
-        while($this->jobs->valid()) {
-            /** @var AbstractWork $ob */
-            $id = $this->jobs->key();
-            $ob = $this->jobs->current();
-            $ob->setId($id);
-            $queue->send($ob, self::QUEUE_STATE_TODO);
-            $this->jobs->next();
-        }
-
-        $this->jobs->removeAll($this->jobs);
-    }
-
     /**
      * will check if running children are
      * finished if so will update pids var
@@ -144,9 +116,10 @@ class Manager
      *      [1235] => 0,    // child with pid 1235 is not running
      *  )
      *
-     * @param $pids
+     * @param array             $pids
+     * @param MessagesService   $queue
      */
-    private function checkRunningChildren(&$pids)
+    private function checkRunningChildren(&$pids, MessagesService $queue)
     {
         // Make extra loop so we pick up children
         // finished closely after each other
@@ -155,30 +128,28 @@ class Manager
                 if ($isRunning === 1) {
                     if (pcntl_waitpid($pid, $status, WNOHANG | WUNTRACED)) {
 
+                        /** @var AbstractWork $object */
+                        $queue->receive($pid, $msgtype, 20480, $object);
+
                         if (pcntl_wifstopped($status)) {
 
-                            $this->stats[$pid] = array(
-                                'error'         => true,
-                                'error_message' => sprintf('Signal: %s caused this child to stop.',  pcntl_wstopsig($status)),
-                                'exit_code'     => null,
-                            );
+                            $object->setExitCode(null)
+                                   ->setError(sprintf('Signal: %s caused this child to stop.',  pcntl_wstopsig($status)))
+                                   ->isSuccess(false);
 
                         } elseif(pcntl_wifsignaled($status)) {
 
-                            $this->stats[$pid] = array(
-                                'error'         => true,
-                                'error_message' => sprintf('Signal: %s caused this child to exit', pcntl_wtermsig($status)),
-                                'exit_code'     => pcntl_wexitstatus($status),
-                            );
+                            $object->setExitCode(pcntl_wexitstatus($status))
+                                   ->setError(sprintf('Signal: %s caused this child to exit', pcntl_wtermsig($status)))
+                                   ->isSuccess(false);
 
                         } else {
 
-                           $this->stats[$pid] = array(
-                               'error'         => false,
-                               'error_message' => null,
-                               'exit_code'     => pcntl_wexitstatus($status),
-                           );
+                            $object->setExitCode(pcntl_wexitstatus($status));
+
                         }
+
+                        $this->finishedJobs[$object->getPid()] = $object;
 
                         $isRunning = 0;
                     }

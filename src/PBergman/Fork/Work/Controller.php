@@ -6,15 +6,13 @@
 
 namespace PBergman\Fork\Work;
 
-use PBergman\Fork\Manager;
-use \PBergman\SystemV\IPC\Semaphore\Service as SemaphoreService;
+use PBergman\SystemV\IPC\Semaphore\Service as SemaphoreService;
 use PBergman\SystemV\IPC\Messages\Service as MessagesService;
 use PBergman\Fork\Helpers\OutputHelper as OutputHandler;
 use PBergman\Fork\Helpers\ErrorHelper  as ErrorHandler;
 use PBergman\Fork\Helpers\ExitHelper   as ExitHandler;
 
 declare(ticks = 1);
-
 /**
  * Class Controller
  *
@@ -28,8 +26,8 @@ class Controller
     private $queue;
     /** @var SemaphoreService  */
     private $sem;
-    /** @var array  */
-    private $stats;
+    /** @var int  */
+    private $start;
 
     /**
      * @param OutputHandler     $output
@@ -39,23 +37,26 @@ class Controller
     public function __construct(OutputHandler $output, MessagesService $queue, SemaphoreService $sem)
     {
         // For debugging set start time
-        $this->start  = microtime(true);
+        $this->start  = (int) microtime(true);
         $this->queue  = $queue;
         $this->output = $output;
         $this->sem    = $sem;
     }
 
-    public function run($ppid)
+    /**
+     * main controller for child
+     *
+     * @param AbstractWork $object
+     */
+    public function run(AbstractWork $object)
     {
         // Enable custom error handler
         ErrorHandler::enable($this->output);
-        /** @var AbstractWork $object */
-        $this->queue->receive(Manager::QUEUE_STATE_TODO, $msgtype, 10000, $object);
 
         $this->output->debug(sprintf('Starting: %s', $object->getName()), posix_getpid(), OutputHandler::PROCESS_CHILD);
 
         // Set pids
-        $object->setParentPid($ppid)->setPid(posix_getpid());
+        $object->setPid(posix_getpid());
 
         // Setup exit function and check timeout
         $this->setupExit($object)->checkTimeOut($object);
@@ -63,7 +64,7 @@ class Controller
         // Try execute child process
         try {
 
-            $object->execute();
+            $object->execute($this->output);
             $object->setDuration((microtime(true) - $this->start))
                    ->setUsage(memory_get_usage());
 
@@ -72,9 +73,9 @@ class Controller
         } catch(\Exception $e) {
 
             $object->setSuccess(false)
-                ->setError($e->getMessage())
-                ->setDuration((microtime(true) - $this->start))
-                ->setUsage(memory_get_usage());
+                   ->setError($e->getMessage())
+                   ->setDuration((microtime(true) - $this->start))
+                   ->setUsage(memory_get_usage());
 
             exit($e->getCode());
         }
@@ -94,7 +95,7 @@ class Controller
         $exitHandler->addCallback(function(AbstractWork $object, MessagesService $queue, $startTime){
 
                 if (null !== $error = error_get_last()) {
-                    if ($error['type'] === E_ERROR) {
+                    if ($error['type'] & (E_ERROR | E_USER_ERROR)) {
                         $object->setSuccess(false)
                             ->setExitCode(255)
                             ->setDuration((microtime(true) - $startTime))
@@ -104,13 +105,25 @@ class Controller
                     }
                 }
 
-                $queue->send($object, Manager::QUEUE_STATE_FINISHED);
+                $queue->send($object, posix_getpid());
 
         }, array($object, $this->queue, $this->start))
         // Debug printing
-        ->addCallback(function(OutputHandler $output){ $output->debug('Finished', posix_getpid(), OutputHandler::PROCESS_CHILD); }, array($this->output))
+        ->addCallback(function(OutputHandler $output, AbstractWork $object){
+                $output->debug(
+                    sprintf('Finished: %s (%s MB/%s s)',
+                        $object->getName(),
+                        round($object->getUsage() /  1024 / 1024, 2),
+                        round($object->getDuration(), 2)
+                    ),
+                    posix_getpid(),
+                    OutputHandler::PROCESS_CHILD
+                );
+        }, array($this->output, $object))
         // Release semaphore
-        ->addCallback(function(SemaphoreService $sem){ $sem->release(); }, array($this->sem));
+        ->addCallback(function(SemaphoreService $sem){
+                $sem->release();
+        }, array($this->sem));
 
         return $this;
     }
@@ -124,15 +137,15 @@ class Controller
     protected function checkTimeOut(AbstractWork &$object)
     {
         if (null !== $timeout = $object->getTimeout()) {
-                pcntl_alarm($timeout);
-                pcntl_signal(SIGALRM, function() use ($timeout, &$object){
-                    $message = sprintf('timeout exceeded: %s second(s)', $timeout);
+            pcntl_alarm($timeout);
+            pcntl_signal(SIGALRM, function() use ($timeout, &$object){
+                $message = sprintf('timeout exceeded: %s second(s)', $timeout);
 
-                    $object->setSuccess(false)
-                           ->setError($message);
+                $object->setSuccess(false)
+                       ->setError($message);
 
-                    trigger_error($message, E_USER_ERROR);
-                });
+                trigger_error($message, E_USER_ERROR);
+            });
         }
 
         return $this;
