@@ -30,9 +30,14 @@ class Manager
     const QUEUE_STATE_TODO     = 1;
     const QUEUE_STATE_FINISHED = 2;
 
-    public function __construct()
+    public function __construct(Helpers\OutputHelper $output = null)
     {
-        $this->output = new Helpers\OutputHelper();
+        if (is_null($output)) {
+            $this->output = new Helpers\OutputHelper();
+        } else {
+            $this->output = $output;
+        }
+
         $this->jobs   = new \SplObjectStorage();
         $this->state  = self::STATE_PARENT;
         $this->pid    = posix_getpid();
