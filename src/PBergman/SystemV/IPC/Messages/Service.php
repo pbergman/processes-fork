@@ -88,6 +88,7 @@ class Service
         }
     }
 
+
     /**
      * Receive a message from a message queue
      *
@@ -115,7 +116,7 @@ class Service
      */
     public function receive($type, &$msgtype, $maxsize, &$data, $unserialize = true, $flags = 0, &$error = null)
     {
-        if (!is_numeric($type) ||  $type < 0) {
+        if (!is_numeric($type)) {
             throw ServiceException::invalidMessageType($type);
         }
 

@@ -7,6 +7,7 @@
 namespace PBergman\Fork;
 
 use PBergman\Fork\Work\Controller;
+use PBergman\SystemV\IPC\Messages\ServiceException as MessagesException;
 use PBergman\SystemV\IPC\Semaphore\Service as SemaphoreService;
 use PBergman\SystemV\IPC\Messages\Service as MessagesService;
 use PBergman\Fork\Work\AbstractWork;
@@ -23,6 +24,8 @@ class Manager
     private $output;
     /** @var array  */
     private $finishedJobs = array();
+    /** @var int */
+    private $maxSizeReceiveMessage = 16384;
 
     const STATE_CHILD  = 1;
     const STATE_PARENT = 2;
@@ -118,8 +121,9 @@ class Manager
      *      [1235] => 0,    // child with pid 1235 is not running
      *  )
      *
-     * @param array             $pids
-     * @param MessagesService   $queue
+     * @param   array             $pids
+     * @param   MessagesService   $queue
+     * @throws  MessagesException
      */
     private function sync(&$pids, MessagesService $queue)
     {
@@ -130,8 +134,11 @@ class Manager
                 if ($isRunning === 1) {
                     if (pcntl_waitpid($pid, $status, WNOHANG | WUNTRACED)) {
 
+
                         /** @var AbstractWork $object */
-                        $queue->receive($pid, $msgtype, 40960, $object);
+                        if(false === $queue->receive($pid, $msgtype, $this->maxSizeReceiveMessage, $object, true, 0, $error)) {
+                            throw MessagesException::failedToReceive($error);
+                        }
 
                         if (pcntl_wifstopped($status)) {
 
@@ -220,5 +227,21 @@ class Manager
         $this->jobs->attach($job);
 
         return $this;
+    }
+
+    /**
+     * @return int
+     */
+    public function getMaxSizeReceiveMessage()
+    {
+        return $this->maxSizeReceiveMessage;
+    }
+
+    /**
+     * @param int $maxSizeReceiveMessage
+     */
+    public function setMaxSizeReceiveMessage($maxSizeReceiveMessage)
+    {
+        $this->maxSizeReceiveMessage = $maxSizeReceiveMessage;
     }
 }

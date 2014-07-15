@@ -54,7 +54,7 @@ class ServiceException extends \Exception
      */
     public static function invalidMessageType($type)
     {
-        throw new self(sprintf("Message type: %s for type: %s is invalid this should be a int larger than 0", $type, gettype($type)));
+        throw new self(sprintf("Message type: %s for type: %s is invalid this should be a numeric value", $type, gettype($type)));
     }
 
 
