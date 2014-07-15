@@ -88,10 +88,10 @@ Methods:
 =======
 
 ## (PBergman\Fork)Manager:
-    +  getJobs()           will return the finished jobs that were added by setJobs/addJob (as SplObjectStorage)
-    +  addJob()            will add job to queue, has to be a class extending AbstractWork
-    +  setJobs()           will set array of jobs each have extending AbstractWork
-    +  setWorkers()        will set set amount of workers that will be spawned (default 1)
-    +  run()               will start the fork process
++  getJobs()           will return the finished jobs that were added by setJobs/addJob (as SplObjectStorage)
++  addJob()            will add job to queue, has to be a class extending AbstractWork
++  setJobs()           will set array of jobs each have extending AbstractWork
++  setWorkers()        will set set amount of workers that will be spawned (default 1)
++  run()               will start the fork process
 
 
