@@ -129,7 +129,7 @@ class Manager
                     if (pcntl_waitpid($pid, $status, WNOHANG | WUNTRACED)) {
 
                         /** @var AbstractWork $object */
-                        $queue->receive($pid, $msgtype, 20480, $object);
+                        $queue->receive($pid, $msgtype, 40960, $object);
 
                         if (pcntl_wifstopped($status)) {
 
