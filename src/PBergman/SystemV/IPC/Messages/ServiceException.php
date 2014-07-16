@@ -7,6 +7,7 @@
 
 namespace PBergman\SystemV\IPC\Messages;
 
+use PBergman\SystemV\IPC\Helpers\ErrorsMapping;
 
 /**
  * Class SystemVMessageException
@@ -17,13 +18,23 @@ class ServiceException extends \Exception
 {
 
     /**
+     * @return  ServiceException
+     * @throws  ServiceException
+     */
+    public static function invalidResource()
+    {
+        throw new self(sprintf("Argument should be a valid resource of type: ", Service::RESOURCE_TYPE));
+    }
+
+
+    /**
      * @param   mixed   $error
      * @return  ServiceException
      * @throws  ServiceException
      */
     public static function failedToReceive($error)
     {
-        throw new self(sprintf("[%d] Could not receive message", (int) $error));
+        throw new self(sprintf("Could not receive message, %s(%s)", ErrorsMapping::getMessage($error), (int) $error));
     }
 
     /**
@@ -65,7 +76,7 @@ class ServiceException extends \Exception
      */
     public static function failedToSend($error)
     {
-        throw new self(sprintf("[%d] Could not send message", (int) $error));
+        throw new self(sprintf("Could not send message, %s(%s)", ErrorsMapping::getMessage($error), (int) $error));
     }
 
     /**

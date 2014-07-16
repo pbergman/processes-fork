@@ -4,7 +4,7 @@
  * @copyright Philip Bergman
  */
 
-namespace PBergman\SystemV\IPC\SystemErrors;
+namespace PBergman\SystemV\IPC\Helpers;
 
 /**
  * Class ErrorsMapping
