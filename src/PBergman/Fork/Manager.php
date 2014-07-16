@@ -97,7 +97,7 @@ class Manager
 
         while($this->jobs->valid()) {
 
-            /** @var AbstractWork $ob */
+            /** @var AbstractWork $work */
             $work = $this->jobs->current();
             // For stack reference
             $work->setParentPid(posix_getpid());
@@ -135,7 +135,7 @@ class Manager
 
             ksort($this->finishedJobs);
 
-            foreach ($this->finishedJobs as  $job) {
+            while (null !== $job = array_shift($this->finishedJobs)) {
                 $this->jobs->attach($job);
             }
 
