@@ -56,7 +56,7 @@ class ErrorHelper
 
             $caller = ($errno === E_USER_ERROR) ? OutputHelper::PROCESS_ERROR : OutputHelper::PROCESS_WARNING;
 
-            $output->addToBuffer(sprintf("%s: %s on line %s in file %s", static::$errors[$errno], $errstr, $errline, $errfile));
+            $output->addToBuffer(sprintf("%s: %s in file: %s(%s)", static::$errors[$errno], $errstr, $errfile, $errline));
 
             if ($backtrace) {
                 static::printBackTrace($output, $caller);
@@ -66,7 +66,6 @@ class ErrorHelper
             $output->resetBuffer();
 
         }, $types);
-
     }
 
     /**
