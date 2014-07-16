@@ -32,14 +32,19 @@ class Manager
     private $maxSize = 536870912;
     /** @var array  */
     private $pids = array();
+    /** @var int  */
+    private $tokenSem;
+    /** @var int  */
+    private $tokenMsg;
 
     const STATE_CHILD  = 1;
     const STATE_PARENT = 2;
 
     /**
-     * @param OutputHelper $output
+     * @param OutputHelper  $output
+     * @param string        $file       files used to generate tokens
      */
-    public function __construct(OutputHelper $output = null)
+    public function __construct(OutputHelper $output = null, $file = __FILE__)
     {
         if (is_null($output)) {
             $this->output = new OutputHelper();
@@ -53,6 +58,9 @@ class Manager
         $this->jobs   = new \SplObjectStorage();
         $this->state  = self::STATE_PARENT;
         $this->pid    = posix_getpid();
+
+        $this->tokenSem = ftok($file, 'm');
+        $this->tokenMsg = ftok($file, 's');
 
         $exitHandler = new ExitHandler();
         $exitHandler->addCallback(function($state, $pids, OutputHelper $output){
@@ -69,8 +77,8 @@ class Manager
                     }
                 }
 
-                $queue = new MessagesService(ftok(__FILE__, 'm'), 0660);
-                $sem   = new SemaphoreService(ftok(__FILE__, 's'), $this->workers, 0660, false);
+                $queue = new MessagesService($this->tokenMsg, 0660);
+                $sem   = new SemaphoreService($this->tokenSem, $this->workers, 0660, false);
 
                 $queue->remove();
                 $sem->remove();
@@ -90,8 +98,8 @@ class Manager
      */
     public function run()
     {
-        $queue = new MessagesService(ftok(__FILE__, 'm'), 0660);
-        $sem   = new SemaphoreService(ftok(__FILE__, 's'), $this->workers, 0660, false);
+        $queue = new MessagesService($this->tokenMsg, 0660);
+        $sem   = new SemaphoreService($this->tokenSem, $this->workers, 0660, false);
 
         $this->jobs->rewind();
 
