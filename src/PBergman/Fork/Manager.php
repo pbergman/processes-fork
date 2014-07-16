@@ -6,11 +6,15 @@
 
 namespace PBergman\Fork;
 
+use PBergman\Fork\Helpers\OutputHelper;
 use PBergman\Fork\Work\Controller;
 use PBergman\SystemV\IPC\Messages\ServiceException as MessagesException;
 use PBergman\SystemV\IPC\Semaphore\Service as SemaphoreService;
+use PBergman\SystemV\IPC\Messages\Receiver;
 use PBergman\SystemV\IPC\Messages\Service as MessagesService;
 use PBergman\Fork\Work\AbstractWork;
+use PBergman\Fork\Helpers\ErrorHelper as ErrorHandler;
+use PBergman\Fork\Helpers\ExitHelper as ExitHandler;
 
 class Manager
 {
@@ -20,27 +24,61 @@ class Manager
     private $jobs;
     /** @var int  */
     private $state;
-    /** @var \PBergman\Fork\Helpers\OutputHelper  */
+    /** @var OutputHelper  */
     private $output;
     /** @var array  */
     private $finishedJobs = array();
     /** @var int */
-    private $maxSizeReceiveMessage = 16384;
+    private $maxSize = 536870912;
+    /** @var array  */
+    private $pids = array();
 
     const STATE_CHILD  = 1;
     const STATE_PARENT = 2;
 
-    public function __construct(Helpers\OutputHelper $output = null)
+    /**
+     * @param OutputHelper $output
+     */
+    public function __construct(OutputHelper $output = null)
     {
         if (is_null($output)) {
-            $this->output = new Helpers\OutputHelper();
+            $this->output = new OutputHelper();
         } else {
             $this->output = $output;
         }
 
+        // Enable custom error handler
+        ErrorHandler::enable($this->output, E_ALL | E_STRICT, false);
+
         $this->jobs   = new \SplObjectStorage();
         $this->state  = self::STATE_PARENT;
         $this->pid    = posix_getpid();
+
+        $exitHandler = new ExitHandler();
+        $exitHandler->addCallback(function($state, $pids, OutputHelper $output){
+
+            if ($state === Manager::STATE_PARENT) {
+                if (null !== $error = error_get_last()) {
+                    if ($error['type'] & (E_ERROR | E_USER_ERROR)) {
+                        foreach($pids as $pid => $isRunning) {
+                            if ($isRunning) {
+                                $output->debug(sprintf('Killing child: %s', $pid));
+                                posix_kill($pid, SIGKILL);
+                            }
+                        }
+                    }
+                }
+
+                $queue = new MessagesService(ftok(__FILE__, 'm'), 0660);
+                $sem   = new SemaphoreService(ftok(__FILE__, 's'), $this->workers, 0660, false);
+
+                $queue->remove();
+                $sem->remove();
+
+            }
+
+        }, array(&$this->state, &$this->pids, $this->output));
+
     }
 
 
@@ -53,7 +91,6 @@ class Manager
     public function run()
     {
         $queue = new MessagesService(ftok(__FILE__, 'm'), 0660);
-        $pids  = array();
         $sem   = new SemaphoreService(ftok(__FILE__, 's'), $this->workers, 0660, false);
 
         $this->jobs->rewind();
@@ -66,7 +103,7 @@ class Manager
             $work->setParentPid(posix_getpid());
 
             $sem->acquire();
-            $this->sync($pids, $queue);
+            $this->sync($queue->getReceiver());
 
             $pid = pcntl_fork();
 
@@ -77,11 +114,11 @@ class Manager
                 case 0:     // @child
                     $this->state = self::STATE_CHILD;
                     $this->jobs  = null;
-                    $controller  = new Controller($this->output, $queue, $sem);
+                    $controller  = new Controller($this->output, $queue->getSender(), $sem);
                     $controller->run($work);
                     break;
                 default:    // @parent
-                    $pids[$pid] = 1;
+                    $this->pids[$pid] = 1;
             }
 
 
@@ -92,8 +129,8 @@ class Manager
         if ($this->state === self::STATE_PARENT) {
 
             // Wait for children.....
-            while(array_sum($pids) >= 1) {
-                $this->sync($pids, $queue);
+            while(array_sum($this->pids) >= 1) {
+                $this->sync($queue->getReceiver());
             }
 
             ksort($this->finishedJobs);
@@ -103,10 +140,6 @@ class Manager
             }
 
             $this->jobs->rewind();
-
-            // Cleanup!
-            $queue->remove();
-            $sem->remove();
         }
 
     }
@@ -114,31 +147,28 @@ class Manager
      * will check if running children are
      * finished if so will update pids var
      *
-     *  pids array should be like:
-     *
-     *  array(
-     *      [1234] => 1,    // child with pid 1234 is running
-     *      [1235] => 0,    // child with pid 1235 is not running
-     *  )
-     *
-     * @param   array             $pids
-     * @param   MessagesService   $queue
+     * @param   Receiver            $receiver
      * @throws  MessagesException
      */
-    private function sync(&$pids, MessagesService $queue)
+    private function sync(Receiver $receiver)
     {
         // Make extra loop so we pick up children
         // finished closely after each other
-        for($i =0 ; $i < array_sum($pids); $i++) {
-            foreach($pids as $pid => &$isRunning) {
+        for($i = 0 ; $i < array_sum($this->pids); $i++) {
+            foreach($this->pids as $pid => &$isRunning) {
                 if ($isRunning === 1) {
                     if (pcntl_waitpid($pid, $status, WNOHANG | WUNTRACED)) {
 
+                        $received = $receiver->setType($pid)
+                                             ->setMaxSize($this->maxSize)
+                                             ->pull();
+
+                        if (false === $received->isSuccess()) {
+                            trigger_error(sprintf('Failed to receive message, %s(%s)', $receiver->getError(), $receiver->getErrorCode()), E_USER_ERROR);
+                        }
 
                         /** @var AbstractWork $object */
-                        if(false === $queue->receive($pid, $msgtype, $this->maxSizeReceiveMessage, $object, true, 0, $error)) {
-                            throw MessagesException::failedToReceive($error);
-                        }
+                        $object = $received->getData();
 
                         if (pcntl_wifstopped($status)) {
 
@@ -232,16 +262,18 @@ class Manager
     /**
      * @return int
      */
-    public function getMaxSizeReceiveMessage()
+    public function getMaxSize()
     {
-        return $this->maxSizeReceiveMessage;
+        return $this->maxSize;
     }
 
     /**
-     * @param int $maxSizeReceiveMessage
+     * @param   int     $maxSize
+     * @return  $this;
      */
-    public function setMaxSizeReceiveMessage($maxSizeReceiveMessage)
+    public function setMaxSize($maxSize)
     {
-        $this->maxSizeReceiveMessage = $maxSizeReceiveMessage;
+        $this->maxSize = $maxSize;
+        return $this;
     }
 }

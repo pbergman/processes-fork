@@ -6,8 +6,10 @@
 
 namespace PBergman\Fork\Work;
 
+use PBergman\SystemV\IPC\Messages\ServiceException;
 use PBergman\SystemV\IPC\Semaphore\Service as SemaphoreService;
-use PBergman\SystemV\IPC\Messages\Service as MessagesService;
+use PBergman\SystemV\IPC\Messages\Sender;
+//use PBergman\SystemV\IPC\Messages\Service as MessagesService;
 use PBergman\Fork\Helpers\OutputHelper as OutputHandler;
 use PBergman\Fork\Helpers\ErrorHelper  as ErrorHandler;
 use PBergman\Fork\Helpers\ExitHelper   as ExitHandler;
@@ -22,8 +24,10 @@ class Controller
 {
     /** @var OutputHandler  */
     private $output;
-    /** @var MessagesService  */
-    private $queue;
+//    /** @var MessagesService  */
+//    private $queue;
+    /** @var Sender  */
+    private $sender;
     /** @var SemaphoreService  */
     private $sem;
     /** @var int  */
@@ -31,14 +35,14 @@ class Controller
 
     /**
      * @param OutputHandler     $output
-     * @param MessagesService   $queue
+     * @param Sender            $sender
      * @param SemaphoreService  $sem
      */
-    public function __construct(OutputHandler $output, MessagesService $queue, SemaphoreService $sem)
+    public function __construct(OutputHandler $output, Sender $sender, SemaphoreService $sem)
     {
         // For debugging set start time
         $this->start  = (int) microtime(true);
-        $this->queue  = $queue;
+        $this->sender = $sender;
         $this->output = $output;
         $this->sem    = $sem;
     }
@@ -48,7 +52,7 @@ class Controller
      *
      * @param AbstractWork $object
      */
-    public function run(AbstractWork $object)
+    public function run(AbstractWork &$object)
     {
         // Enable custom error handler
         ErrorHandler::enable($this->output);
@@ -92,7 +96,7 @@ class Controller
     {
         $exitHandler = new ExitHandler();
         // Handling fatal errors and save object back to message queue
-        $exitHandler->addCallback(function(AbstractWork $object, MessagesService $queue, $startTime){
+        $exitHandler->addCallback(function(AbstractWork $object, Sender $sender, $startTime){
 
                 if (null !== $error = error_get_last()) {
                     if ($error['type'] & (E_ERROR | E_USER_ERROR)) {
@@ -105,9 +109,15 @@ class Controller
                     }
                 }
 
-                $queue->send($object, posix_getpid());
+                $send = $sender->setData($object)
+                               ->setType(posix_getpid())
+                               ->push();
 
-        }, array($object, $this->queue, $this->start))
+                if (false === $send->isSuccess()) {
+                    trigger_error(sprintf('Failed to send message, %s(%s)', $sender->getError(), $sender->getErrorCode()), E_USER_ERROR);
+                }
+
+        }, array($object, $this->sender, $this->start))
         // Debug printing
         ->addCallback(function(OutputHandler $output, AbstractWork $object){
                 $output->debug(
@@ -120,7 +130,7 @@ class Controller
                     OutputHandler::PROCESS_CHILD
                 );
         }, array($this->output, $object))
-        // Release semaphore
+        // Release semaphore for worker queue
         ->addCallback(function(SemaphoreService $sem){
                 $sem->release();
         }, array($this->sem));
