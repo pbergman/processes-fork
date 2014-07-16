@@ -82,8 +82,12 @@ class OutputHelper
      *
      * @return string|$this
      */
-    public function debug($message, $pid, $calling = self::PROCESS_PARENT)
+    public function debug($message, $pid = null, $calling = self::PROCESS_PARENT)
     {
+        if (is_null($pid)) {
+            $pid = posix_getpid();
+        }
+
         $this->write($this->formatMessage($message, $pid, $calling));
     }
 
