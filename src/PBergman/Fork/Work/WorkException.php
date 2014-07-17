@@ -6,7 +6,11 @@
 
 namespace PBergman\Fork\Work;
 
-
+/**
+ * Class WorkException
+ *
+ * @package PBergman\Fork\Work
+ */
 class WorkException extends \Exception
 {
 

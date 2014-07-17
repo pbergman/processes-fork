@@ -6,8 +6,6 @@
 
 namespace PBergman\Fork;
 
-use PBergman\Fork\Helpers\OutputHelper;
-use PBergman\Fork\Work\Controller;
 use PBergman\SystemV\IPC\Messages\ServiceException as MessagesException;
 use PBergman\SystemV\IPC\Semaphore\Service as SemaphoreService;
 use PBergman\SystemV\IPC\Messages\Receiver;
@@ -15,6 +13,8 @@ use PBergman\SystemV\IPC\Messages\Service as MessagesService;
 use PBergman\Fork\Work\AbstractWork;
 use PBergman\Fork\Helpers\ErrorHelper as ErrorHandler;
 use PBergman\Fork\Helpers\ExitHelper as ExitHandler;
+use PBergman\Fork\Helpers\OutputHelper;
+use PBergman\Fork\Work\Controller;
 
 class Manager
 {
@@ -29,7 +29,7 @@ class Manager
     /** @var array  */
     private $finishedJobs = array();
     /** @var int */
-    private $maxSize = 536870912;
+    private $maxSize = 16384;
     /** @var array  */
     private $pids = array();
     /** @var int  */

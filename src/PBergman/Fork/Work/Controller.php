@@ -24,8 +24,6 @@ class Controller
 {
     /** @var OutputHandler  */
     private $output;
-//    /** @var MessagesService  */
-//    private $queue;
     /** @var Sender  */
     private $sender;
     /** @var SemaphoreService  */
