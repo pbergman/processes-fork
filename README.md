@@ -87,7 +87,7 @@ This will give a output like :
 
 ####(PBergman\Fork)Manager:
 
-#####*__construct($debug = false, OutputHelper $output = null, $file = __FILE__)*
+#####*__construct($debug = false, OutputHelper $output = null, $file = __FILE__ )*
 when calling a new instance of the class you can add a instance of output helper
 so you can specify a output for example:
 ```
