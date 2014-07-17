@@ -6,8 +6,6 @@
 
 namespace PBergman\Fork\Helpers;
 
-use \PBergman\SystemV\IPC\Semaphore\Service as SemaphoreService;
-
 /**
  * Class OutputHelper
  *
