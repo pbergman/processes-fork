@@ -88,32 +88,32 @@ This will give a output like :
 ####(PBergman\Fork)Manager:
 
 #####*__construct($debug = false, OutputHelper $output = null, $file = __FILE__)*
-    when calling a new instance of the class you can add a instance of output helper
-    so you can specify a output for example:
-    ```
-    $debug = new OutputHandler();
-    $debug->setStream(fopen('/tmp/output.log', 'a+'));
-    $manager = new Manager($debug);
-    ```
-    this will print log in /tmp/output.log instead of screen
+when calling a new instance of the class you can add a instance of output helper
+so you can specify a output for example:
+```
+$debug = new OutputHandler();
+$debug->setStream(fopen('/tmp/output.log', 'a+'));
+$manager = new Manager($debug);
+```
+this will print log in /tmp/output.log instead of screen
 
-    The argument $file can be set if jou want to cal this multiple time and don`t want interfere
-    with each other, this has to be existing file. And is used to generate a token with ftok()
+The argument $file can be set if jou want to cal this multiple time and don`t want interfere
+with each other, this has to be existing file. And is used to generate a token with ftok()
 
-    if debug argument is set to true it will print stack trace for error and warnings
+if debug argument is set to true it will print stack trace for error and warnings
 
 #####*getJobs()*
-    Will return the finished jobs that were added by setJobs/addJob (as SplObjectStorage)
+Will return the finished jobs that were added by setJobs/addJob (as SplObjectStorage)
 #####*addJob(AbstractWork $job)*
-    will add job to queue, class has to extending AbstractWork
+will add job to queue, class has to extending AbstractWork
 #####*setJobs(array $jobs)*
-    will reset job stack and set this given array as jobs (each job have extending AbstractWork)
+will reset job stack and set this given array as jobs (each job have extending AbstractWork)
 #####*setWorkers()*
-    will set set amount of workers that will be spawned (default 1)
+will set set amount of workers that will be spawned (default 1)
 #####*setWorkers()*
-    will set set amount of workers that will be spawned (default 1)
+will set set amount of workers that will be spawned (default 1)
 #####*setMaxSize(int $maxSize)*
-    will set the max size used to read the message queue
+will set the max size used to read the message queue
 
 
 ###issues
