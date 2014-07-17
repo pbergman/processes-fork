@@ -54,7 +54,7 @@ class Receiver
      */
     public function pull()
     {
-        if (false === $this->success = msg_receive($this->connection, $this->type, $this->returnedType, $this->maxSize, $this->data, $this->unserialize, $this->flags, $this->errorCode)) {
+        if (false === $this->success = @msg_receive($this->connection, $this->type, $this->returnedType, $this->maxSize, $this->data, $this->unserialize, $this->flags, $this->errorCode)) {
             $this->error  = \PBergman\SystemV\IPC\Helpers\ErrorsMapping::getMessage($this->errorCode);
         } else {
             $this->status = msg_stat_queue($this->connection);
