@@ -36,8 +36,6 @@ class Manager
     private $tokenSem;
     /** @var int  */
     private $tokenMsg;
-    /** @var ExitHandler  */
-    private $onExit;
 
     const STATE_CHILD  = 1;
     const STATE_PARENT = 2;
@@ -66,30 +64,7 @@ class Manager
         $this->tokenSem = ftok($file, 'm');
         $this->tokenMsg = ftok($file, 's');
 
-        $this->onExit->addCallback(function($state, $pids, OutputHelper $output){
-
-            if ($state === Manager::STATE_PARENT) {
-                if (null !== $error = error_get_last()) {
-                    if ($error['type'] & (E_ERROR | E_USER_ERROR)) {
-                        foreach($pids as $pid => $isRunning) {
-                            if ($isRunning) {
-                                $output->debug(sprintf('Killing child: %s', $pid));
-                                posix_kill($pid, SIGKILL);
-                            }
-                        }
-                    }
-                }
-
-                $queue = new MessagesService($this->tokenMsg, 0660);
-                $sem   = new SemaphoreService($this->tokenSem, $this->workers, 0660, false);
-
-                $queue->remove();
-                $sem->remove();
-
-            }
-
-        }, array(&$this->state, &$this->pids, $this->output));
-
+        $this->setupExit();
     }
 
 
@@ -286,5 +261,38 @@ class Manager
     {
         $this->maxSize = $maxSize;
         return $this;
+    }
+
+    /**
+     * exit helper, that will kill children on error
+     * and removes semaphore and message queue
+     */
+    private function setupExit()
+    {
+        $onExit = new ExitHandler();
+        $onExit ->addCallback(function($state, $pids, OutputHelper $output){
+
+            if ($state === Manager::STATE_PARENT) {
+                if (null !== $error = error_get_last()) {
+                    if ($error['type'] & (E_ERROR | E_USER_ERROR)) {
+                        foreach($pids as $pid => $isRunning) {
+                            if ($isRunning) {
+                                $output->debug(sprintf('Killing child: %s', $pid));
+                                posix_kill($pid, SIGKILL);
+                            }
+                        }
+                    }
+                }
+
+                $queue = new MessagesService($this->tokenMsg, 0660);
+                $sem   = new SemaphoreService($this->tokenSem, $this->workers, 0660, false);
+
+                $queue->remove();
+                $sem->remove();
+
+            }
+
+        }, array(&$this->state, &$this->pids, $this->output));
+
     }
 }
