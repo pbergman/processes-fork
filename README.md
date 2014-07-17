@@ -3,29 +3,6 @@ processes-fork
 
 a helper class to control, debug and manage process forks
 
-issues
-=====
-
-it can happen that the message queue (IPC) is set to low, and there for the application will hang or give errors
-
-this can be fixed by setting msgmax, msgmnb
-
-[ref](https://access.redhat.com/articles/15423):
-+ msgmni: The number of IPC message queue resources allowed (by default, 16). 
-+ msgmnb: The size of each message (by default, 8,192 bytes).
-+ msgmax: The maximum total size of the messages in a queue (by default, 16,384 byte...
-
-
-to set permanently:
-
-+ echo "kernel.msgmax=536870912" >>  /etc/sysctl.conf
-+ echo "kernel.msgmnb=536870912" >>  /etc/sysctl.conf
-
-or configure at runtime:
-
-+ sysctl -w kernel.msgmax=536870912
-+ sysctl -w kernel.msgmnb=536870912
-
 Usage
 =====
 
@@ -118,3 +95,35 @@ Methods:
 +  run()               will start the fork process
 
 
+issues
+=====
+
+##E_WARNING: msg_send(): msgsnd failed: Invalid argument
+##E_USER_ERROR: Failed to send message, Invalid argument (22)
+
+this means that your msgmax, msgmnb is set to low, this can be fixed by setting msgmax, msgmnb for example to 128MB
+
+to set permanently:
+
+```bash
+echo "kernel.msgmax=128000000" >>  /etc/sysctl.conf
+echo "kernel.msgmnb=128000000" >>  /etc/sysctl.conf
+```
+
+or configure at runtime:
+
+```bash
+sysctl -w kernel.msgmax=128000000
+sysctl -w kernel.msgmnb=128000000
+```
+
+[ref](https://access.redhat.com/articles/15423):
++ msgmni: The number of IPC message queue resources allowed (by default, 16).
++ msgmnb: The size of each message (by default, 8,192 bytes).
++ msgmax: The maximum total size of the messages in a queue (by default, 16,384 byte...
+
+
+
+When you get a message like "E_USER_ERROR: Failed to receive message, Arg list too long (7)" while running,
+you have to call method setMaxSize from class Manager. And can set the value the same as for example the
+same you had set for msgmnb
