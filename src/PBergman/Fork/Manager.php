@@ -270,7 +270,7 @@ class Manager
     private function setupExit()
     {
         $onExit = new ExitHandler();
-        $onExit ->addCallback(function($state, $pids, OutputHelper $output){
+        $onExit->addCallback(function($state, $pids, OutputHelper $output){
 
             if ($state === Manager::STATE_PARENT) {
                 if (null !== $error = error_get_last()) {
@@ -293,6 +293,8 @@ class Manager
             }
 
         }, array(&$this->state, &$this->pids, $this->output));
+
+        return $this;
 
     }
 }

@@ -27,23 +27,19 @@ class Controller
     private $sem;
     /** @var int  */
     private $start;
-    /** @var ExitHandler  */
-    private $onExit;
 
     /**
      * @param OutputHandler     $output
      * @param Sender            $sender
      * @param SemaphoreService  $sem
-     * @param ExitHandler       $exitHandler
      */
-    public function __construct(OutputHandler $output, Sender $sender, SemaphoreService $sem, ExitHandler $exitHandler)
+    public function __construct(OutputHandler $output, Sender $sender, SemaphoreService $sem)
     {
         // For debugging set start time
         $this->start  = (int) microtime(true);
         $this->sender = $sender;
         $this->output = $output;
         $this->sem    = $sem;
-        $this->onExit = $exitHandler;
     }
 
     /**
@@ -91,7 +87,8 @@ class Controller
      */
     protected function setupExit(AbstractWork $object)
     {
-        $this->onExit
+        $onExit = new ExitHandler();
+        $onExit
             /**
              * Handling fatal errors and save object back to message queue
              */

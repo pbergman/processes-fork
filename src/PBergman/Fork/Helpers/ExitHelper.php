@@ -16,7 +16,7 @@ namespace PBergman\Fork\Helpers;
  */
 class ExitHelper
 {
-    private $callback;
+    private $callback = array();
 
     public function __construct()
     {
