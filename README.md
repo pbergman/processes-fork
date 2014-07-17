@@ -1,10 +1,9 @@
 processes-fork
 =========
 
-a helper class to control, debug and manage process forks
+a helper class to control, debug and manage process forks. It uses semaphore/message queue from System V as IPC
 
-Usage
-=====
+###Usage
 
 Simple example:
 
@@ -18,7 +17,7 @@ use PBergman\Fork\Helpers\OutputHelper as OutputHandler;
 class job extends AbstractWork
 {
     /**
-     * add timeout for fun
+     * add timeout for fun that will generate E_USER_ERROR if time is exceeded
      */
     public function __construct()
     {
@@ -84,22 +83,42 @@ This will give a output like :
 2014-07-15 12:22:34 [CHILD  ] [28667 ] Finished: 28667 (0.47 MB/2.86 s)
 </pre>
 
-Methods:
-=======
+###Methods:
 
-## (PBergman\Fork)Manager:
-+  getJobs()           will return the finished jobs that were added by setJobs/addJob (as SplObjectStorage)
-+  addJob()            will add job to queue, has to be a class extending AbstractWork
-+  setJobs()           will set array of jobs each have extending AbstractWork
-+  setWorkers()        will set set amount of workers that will be spawned (default 1)
-+  run()               will start the fork process
+####(PBergman\Fork)Manager:
+
+#####*__construct($debug = false, OutputHelper $output = null, $file = __FILE__)*
+    when calling a new instance of the class you can add a instance of output helper
+    so you can specify a output for example:
+    ```
+    $debug = new OutputHandler();
+    $debug->setStream(fopen('/tmp/output.log', 'a+'));
+    $manager = new Manager($debug);
+    ```
+    this will print log in /tmp/output.log instead of screen
+
+    The argument $file can be set if jou want to cal this multiple time and don`t want interfere
+    with each other, this has to be existing file. And is used to generate a token with ftok()
+
+    if debug argument is set to true it will print stack trace for error and warnings
+
+#####*getJobs()*
+    Will return the finished jobs that were added by setJobs/addJob (as SplObjectStorage)
+#####*addJob(AbstractWork $job)*
+    will add job to queue, class has to extending AbstractWork
+#####*setJobs(array $jobs)*
+    will reset job stack and set this given array as jobs (each job have extending AbstractWork)
+#####*setWorkers()*
+    will set set amount of workers that will be spawned (default 1)
+#####*setWorkers()*
+    will set set amount of workers that will be spawned (default 1)
+#####*setMaxSize(int $maxSize)*
+    will set the max size used to read the message queue
 
 
-issues
-=====
+###issues
 
-##E_WARNING: msg_send(): msgsnd failed: Invalid argument
-##E_USER_ERROR: Failed to send message, Invalid argument (22)
+####E_USER_ERROR: Failed to send message, Invalid argument(22)
 
 this means that your msgmax, msgmnb is set to low, this can be fixed by setting msgmax, msgmnb for example to 128MB
 
@@ -123,7 +142,16 @@ sysctl -w kernel.msgmnb=128000000
 + msgmax: The maximum total size of the messages in a queue (by default, 16,384 byte...
 
 
-
-When you get a message like "E_USER_ERROR: Failed to receive message, Arg list too long (7)" while running,
+####E_USER_ERROR: Failed to receive message, Arg list too long(7)
 you have to call method setMaxSize from class Manager. And can set the value the same as for example the
-same you had set for msgmnb
+same you had set for msgmnb (128000000)
+
+```php
+
+    $manager = new Manager();
+    $manager->setWorkers(10)
+            ->setMaxSize(128000000)
+            ->setJobs($work)
+            ->run();
+
+```
