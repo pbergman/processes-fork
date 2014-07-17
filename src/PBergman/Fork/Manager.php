@@ -72,6 +72,7 @@ class Manager
      * main method that spawns children
      * end divides the work with workers
      *
+     * @return $this
      * @throws \Exception
      */
     public function run()
@@ -128,7 +129,9 @@ class Manager
             $this->jobs->rewind();
         }
 
+        return $this;
     }
+
     /**
      * will check if running children are
      * finished if so will update pids var
