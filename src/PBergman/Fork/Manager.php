@@ -287,17 +287,30 @@ class Manager
                     }
                 }
 
-                $queue = new MessagesService($this->tokenMsg, 0660);
-                $sem   = new SemaphoreService($this->tokenSem, $this->workers, 0660, false);
-
-                $queue->remove();
-                $sem->remove();
+                $this->cleanup();
 
             }
 
         }, array(&$this->state, &$this->pids, $this->output));
 
         return $this;
+
+    }
+
+
+    /***
+     * cleanup for removing resources
+     */
+    public function cleanup()
+    {
+
+        $queue = new MessagesService($this->tokenMsg, 0660);
+        $sem   = new SemaphoreService($this->tokenSem, $this->workers, 0660, false);
+
+        $queue->remove();
+        $sem->remove();
+
+        $this->jobs->removeAll($this->jobs);
 
     }
 }
