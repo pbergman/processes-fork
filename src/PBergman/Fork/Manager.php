@@ -36,6 +36,8 @@ class Manager
     private $tokenSem;
     /** @var int  */
     private $tokenMsg;
+    /** @var ExitHandler  */
+    private $onExit;
 
     const STATE_CHILD  = 1;
     const STATE_PARENT = 2;
@@ -43,8 +45,9 @@ class Manager
     /**
      * @param OutputHelper  $output
      * @param string        $file       files used to generate tokens
+     * @param bool          $debug      if true will print backtrace for warnings/errors
      */
-    public function __construct(OutputHelper $output = null, $file = __FILE__)
+    public function __construct(OutputHelper $output = null, $file = __FILE__, $debug = false)
     {
         if (is_null($output)) {
             $this->output = new OutputHelper();
@@ -53,17 +56,17 @@ class Manager
         }
 
         // Enable custom error handler
-        ErrorHandler::enable($this->output, E_ALL | E_STRICT, false);
+        ErrorHandler::enable($this->output, E_ALL | E_STRICT, $debug);
 
         $this->jobs   = new \SplObjectStorage();
         $this->state  = self::STATE_PARENT;
         $this->pid    = posix_getpid();
+        $this->onExit = new ExitHandler();
 
         $this->tokenSem = ftok($file, 'm');
         $this->tokenMsg = ftok($file, 's');
 
-        $exitHandler = new ExitHandler();
-        $exitHandler->addCallback(function($state, $pids, OutputHelper $output){
+        $this->onExit->addCallback(function($state, $pids, OutputHelper $output){
 
             if ($state === Manager::STATE_PARENT) {
                 if (null !== $error = error_get_last()) {
@@ -122,7 +125,7 @@ class Manager
                 case 0:     // @child
                     $this->state = self::STATE_CHILD;
                     $this->jobs  = null;
-                    $controller  = new Controller($this->output, $queue->getSender(), $sem);
+                    $controller  = new Controller($this->output, $queue->getSender(), $sem, $this->onExit);
                     $controller->run($work);
                     break;
                 default:    // @parent

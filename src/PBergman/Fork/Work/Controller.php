@@ -6,12 +6,9 @@
 
 namespace PBergman\Fork\Work;
 
-use PBergman\SystemV\IPC\Messages\ServiceException;
 use PBergman\SystemV\IPC\Semaphore\Service as SemaphoreService;
 use PBergman\SystemV\IPC\Messages\Sender;
-//use PBergman\SystemV\IPC\Messages\Service as MessagesService;
 use PBergman\Fork\Helpers\OutputHelper as OutputHandler;
-use PBergman\Fork\Helpers\ErrorHelper  as ErrorHandler;
 use PBergman\Fork\Helpers\ExitHelper   as ExitHandler;
 
 declare(ticks = 1);
@@ -30,19 +27,23 @@ class Controller
     private $sem;
     /** @var int  */
     private $start;
+    /** @var ExitHandler  */
+    private $onExit;
 
     /**
      * @param OutputHandler     $output
      * @param Sender            $sender
      * @param SemaphoreService  $sem
+     * @param ExitHandler       $exitHandler
      */
-    public function __construct(OutputHandler $output, Sender $sender, SemaphoreService $sem)
+    public function __construct(OutputHandler $output, Sender $sender, SemaphoreService $sem, ExitHandler $exitHandler)
     {
         // For debugging set start time
         $this->start  = (int) microtime(true);
         $this->sender = $sender;
         $this->output = $output;
         $this->sem    = $sem;
+        $this->onExit = $exitHandler;
     }
 
     /**
@@ -52,16 +53,14 @@ class Controller
      */
     public function run(AbstractWork &$object)
     {
-        // Enable custom error handler
-        ErrorHandler::enable($this->output);
-
         $this->output->debug(sprintf('Starting: %s', $object->getName()), posix_getpid(), OutputHandler::PROCESS_CHILD);
 
         // Set pids
         $object->setPid(posix_getpid());
 
         // Setup exit function and check timeout
-        $this->setupExit($object)->checkTimeOut($object);
+        $this->setupExit($object)
+             ->checkTimeOut($object);
 
         // Try execute child process
         try {
@@ -92,9 +91,11 @@ class Controller
      */
     protected function setupExit(AbstractWork $object)
     {
-        $exitHandler = new ExitHandler();
-        // Handling fatal errors and save object back to message queue
-        $exitHandler->addCallback(function(AbstractWork $object, Sender $sender, $startTime){
+        $this->onExit
+            /**
+             * Handling fatal errors and save object back to message queue
+             */
+            ->addCallback(function(AbstractWork $object, Sender $sender, $startTime){
 
                 if (null !== $error = error_get_last()) {
                     if ($error['type'] & (E_ERROR | E_USER_ERROR)) {
@@ -116,8 +117,10 @@ class Controller
                 }
 
         }, array($object, $this->sender, $this->start))
-        // Debug printing
-        ->addCallback(function(OutputHandler $output, AbstractWork $object){
+            /**
+             * Print some debugging when finished
+             */
+            ->addCallback(function(OutputHandler $output, AbstractWork $object){
                 $output->debug(
                     sprintf('Finished: %s (%s MB/%s s)',
                         $object->getName(),
@@ -128,8 +131,10 @@ class Controller
                     OutputHandler::PROCESS_CHILD
                 );
         }, array($this->output, $object))
-        // Release semaphore for worker queue
-        ->addCallback(function(SemaphoreService $sem){
+            /**
+             * Release semaphore for queue when finished
+             */
+            ->addCallback(function(SemaphoreService $sem){
                 $sem->release();
         }, array($this->sem));
 
@@ -148,10 +153,8 @@ class Controller
             pcntl_alarm($timeout);
             pcntl_signal(SIGALRM, function() use ($timeout, &$object){
                 $message = sprintf('timeout exceeded: %s second(s)', $timeout);
-
                 $object->setSuccess(false)
                        ->setError($message);
-
                 trigger_error($message, E_USER_ERROR);
             });
         }
