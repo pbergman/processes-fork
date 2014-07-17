@@ -43,11 +43,11 @@ class Manager
     const STATE_PARENT = 2;
 
     /**
+     * @param bool          $debug      if true will print backtrace for warnings/errors
      * @param OutputHelper  $output
      * @param string        $file       files used to generate tokens
-     * @param bool          $debug      if true will print backtrace for warnings/errors
      */
-    public function __construct(OutputHelper $output = null, $file = __FILE__, $debug = false)
+    public function __construct($debug = false, OutputHelper $output = null, $file = __FILE__)
     {
         if (is_null($output)) {
             $this->output = new OutputHelper();
