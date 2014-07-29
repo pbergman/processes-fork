@@ -77,8 +77,6 @@ class ErrorHelper
 
             $buffer->write();
 
-            exit(1);
-
         }, $types);
     }
 
