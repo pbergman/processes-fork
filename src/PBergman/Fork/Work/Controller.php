@@ -6,9 +6,10 @@
 
 namespace PBergman\Fork\Work;
 
+use PBergman\Fork\Output\LogFormatter;
 use PBergman\SystemV\IPC\Semaphore\Service as SemaphoreService;
 use PBergman\SystemV\IPC\Messages\Sender;
-use PBergman\Fork\Helpers\OutputHelper as OutputHandler;
+use PBergman\Fork\Output\OutputInterface;
 use PBergman\Fork\Helpers\ExitHelper   as ExitHandler;
 
 declare(ticks = 1);
@@ -19,7 +20,7 @@ declare(ticks = 1);
  */
 class Controller
 {
-    /** @var OutputHandler  */
+    /** @var OutputInterface  */
     private $output;
     /** @var Sender  */
     private $sender;
@@ -29,11 +30,11 @@ class Controller
     private $start;
 
     /**
-     * @param OutputHandler     $output
+     * @param OutputInterface   $output
      * @param Sender            $sender
      * @param SemaphoreService  $sem
      */
-    public function __construct(OutputHandler $output, Sender $sender, SemaphoreService $sem)
+    public function __construct(OutputInterface $output, Sender $sender, SemaphoreService $sem)
     {
         // For debugging set start time
         $this->start  = (int) microtime(true);
@@ -49,7 +50,8 @@ class Controller
      */
     public function run(AbstractWork &$object)
     {
-        $this->output->debug(sprintf('Starting: %s', $object->getName()), posix_getpid(), OutputHandler::PROCESS_CHILD);
+
+        $this->output->write((new LogFormatter(LogFormatter::PROCESS_CHILD))->format(sprintf('Starting: %s', $object->getName())));
 
         // Set pids
         $object->setPid(posix_getpid());
@@ -117,16 +119,16 @@ class Controller
             /**
              * Print some debugging when finished
              */
-            ->addCallback(function(OutputHandler $output, AbstractWork $object){
-                $output->debug(
+            ->addCallback(function(OutputInterface $output, AbstractWork $object){
+
+                $output->write((new LogFormatter(LogFormatter::PROCESS_CHILD))->format(
                     sprintf('Finished: %s (%s MB/%s s)',
                         $object->getName(),
                         round($object->getUsage() /  1024 / 1024, 2),
                         round($object->getDuration(), 2)
-                    ),
-                    posix_getpid(),
-                    OutputHandler::PROCESS_CHILD
-                );
+                    )
+                ));
+
         }, array($this->output, $object))
             /**
              * Release semaphore for queue when finished

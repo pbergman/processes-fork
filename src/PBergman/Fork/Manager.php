@@ -6,6 +6,7 @@
 
 namespace PBergman\Fork;
 
+use PBergman\Fork\Output\LogFormatter;
 use PBergman\SystemV\IPC\Messages\ServiceException as MessagesException;
 use PBergman\SystemV\IPC\Semaphore\Service as SemaphoreService;
 use PBergman\SystemV\IPC\Messages\Receiver;
@@ -13,7 +14,8 @@ use PBergman\SystemV\IPC\Messages\Service as MessagesService;
 use PBergman\Fork\Work\AbstractWork;
 use PBergman\Fork\Helpers\ErrorHelper as ErrorHandler;
 use PBergman\Fork\Helpers\ExitHelper as ExitHandler;
-use PBergman\Fork\Helpers\OutputHelper;
+use PBergman\Fork\Output\OutputInterface;
+use PBergman\Fork\Output\Output;
 use PBergman\Fork\Work\Controller;
 
 class Manager
@@ -24,7 +26,7 @@ class Manager
     private $jobs;
     /** @var int  */
     private $state;
-    /** @var OutputHelper  */
+    /** @var OutputInterface  */
     private $output;
     /** @var array  */
     private $finishedJobs = array();
@@ -41,25 +43,23 @@ class Manager
     const STATE_PARENT = 2;
 
     /**
-     * @param bool          $debug      if true will print backtrace for warnings/errors
-     * @param OutputHelper  $output
-     * @param string        $file       files used to generate tokens
+     * @param OutputInterface   $output
+     * @param string            $file       files used to generate tokens
      */
-    public function __construct($debug = false, OutputHelper $output = null, $file = __FILE__)
+    public function __construct(OutputInterface $output = null, $file = __FILE__)
     {
         if (is_null($output)) {
-            $this->output = new OutputHelper();
+            $this->output = new Output();
         } else {
             $this->output = $output;
         }
 
         // Enable custom error handler
-        ErrorHandler::enable($this->output, E_ALL | E_STRICT, $debug);
+        ErrorHandler::enable($this->output);
 
         $this->jobs   = new \SplObjectStorage();
         $this->state  = self::STATE_PARENT;
         $this->pid    = posix_getpid();
-        $this->onExit = new ExitHandler();
 
         $this->tokenSem = ftok($file, 'm');
         $this->tokenMsg = ftok($file, 's');
@@ -88,7 +88,6 @@ class Manager
             $work = $this->jobs->current();
             // For stack reference
             $work->setParentPid(posix_getpid());
-
             $sem->acquire();
             $this->sync($queue->getReceiver());
 
@@ -101,13 +100,12 @@ class Manager
                 case 0:     // @child
                     $this->state = self::STATE_CHILD;
                     $this->jobs  = null;
-                    $controller  = new Controller($this->output, $queue->getSender(), $sem, $this->onExit);
+                    $controller  = new Controller($this->output, $queue->getSender(), $sem);
                     $controller->run($work);
                     break;
                 default:    // @parent
                     $this->pids[$pid] = 1;
             }
-
 
             $this->jobs->next();
             $this->jobs->detach($work);
@@ -172,13 +170,10 @@ class Manager
                                    ->isSuccess(false);
 
                         } else {
-
                             $object->setExitCode(pcntl_wexitstatus($status));
-
                         }
 
                         $this->finishedJobs[$object->getPid()] = $object;
-
                         $isRunning = 0;
                     }
                 }
@@ -273,14 +268,15 @@ class Manager
     private function setupExit()
     {
         $onExit = new ExitHandler();
-        $onExit->addCallback(function($state, $pids, OutputHelper $output){
+        $onExit->addCallback(function($state, $pids, OutputInterface $output){
 
             if ($state === Manager::STATE_PARENT) {
                 if (null !== $error = error_get_last()) {
+
                     if ($error['type'] & (E_ERROR | E_USER_ERROR)) {
                         foreach($pids as $pid => $isRunning) {
                             if ($isRunning) {
-                                $output->debug(sprintf('Killing child: %s', $pid));
+                                $output->write((new LogFormatter())->format(sprintf('Killing child: %s', $pid)));
                                 posix_kill($pid, SIGKILL);
                             }
                         }
@@ -303,14 +299,8 @@ class Manager
      */
     public function cleanup()
     {
-
-        $queue = new MessagesService($this->tokenMsg, 0660);
-        $sem   = new SemaphoreService($this->tokenSem, $this->workers, 0660, false);
-
-        $queue->remove();
-        $sem->remove();
-
+        (new MessagesService($this->tokenMsg, 0660))->remove();
+        (new SemaphoreService($this->tokenSem, $this->workers, 0660, false))->remove();
         $this->jobs->removeAll($this->jobs);
-
     }
 }

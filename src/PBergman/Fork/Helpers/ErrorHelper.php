@@ -6,6 +6,11 @@
 
 namespace PBergman\Fork\Helpers;
 
+use PBergman\Fork\Output\FormatInterface;
+use PBergman\Fork\Output\LogFormatter;
+use PBergman\Fork\Output\OutputBuffer;
+use PBergman\Fork\Output\OutputInterface;
+
 /**
  * Class ErrorHelper
  *
@@ -40,30 +45,39 @@ class ErrorHelper
     /**
      * set custom error handler
      *
-     * @param OutputHelper      $output
+     * @param OutputInterface   $output
      * @param null              $types
-     * @param bool              $backtrace
      */
-    static function enable(OutputHelper $output, $types = null, $backtrace = true)
+    static function enable(OutputInterface $output, $types = null)
     {
         if (is_null($types)) {
             $types = E_ALL | E_STRICT;
         }
 
-        error_reporting(0);
+        error_reporting($types);
 
-        set_error_handler(function($errno, $errstr, $errfile, $errline) use ($output, $backtrace) {
+        set_error_handler(function($errno, $errstr, $errfile, $errline) use ($output) {
 
-            $caller = ($errno === E_USER_ERROR) ? OutputHelper::PROCESS_ERROR : OutputHelper::PROCESS_WARNING;
+            $formatter = new LogFormatter(
+                ($errno === E_USER_ERROR | E_ERROR) ? LogFormatter::PROCESS_ERROR : LogFormatter::PROCESS_WARNING,
+                posix_getpid()
+            );
 
-            $output->addToBuffer(sprintf("%s: %s in file: %s(%s)", static::$errors[$errno], $errstr, $errfile, $errline));
+            /** @var OutputBuffer $buffer */
+            $buffer = $output
+                        ->getBuffer()
+                        ->setFormatter($formatter)
+                        ->add(sprintf("%s: %s in file: %s(%s)", static::$errors[$errno], $errstr, $errfile, $errline));
 
-            if ($backtrace) {
-                static::printBackTrace($output, $caller);
+
+
+            if ($output->isVerbose()) {
+                static::printBackTrace($buffer);
             }
 
-            $output->printfBuffer(posix_getpid(), $caller);
-            $output->resetBuffer();
+            $buffer->write();
+
+            exit(1);
 
         }, $types);
     }
@@ -71,18 +85,17 @@ class ErrorHelper
     /**
      * print backtrace
      *
-     * @param OutputHelper $output
-     * @param string       $caller
+     * @param OutputBuffer $buffer
      */
-    static function printBackTrace(OutputHelper $output, $caller)
+    private static function printBackTrace(OutputBuffer $buffer)
     {
         foreach (debug_backtrace() as $k => $v) {
 
-            array_walk($v['args'], function (&$item, $key) {
+            array_walk($v['args'], function (&$item) {
                 $item = var_export($item, true);
             });
 
-            $output->addToBuffer(sprintf("#%d %s(%s): %s(%s)", $k,  $v['file'], $v['line'], (isset($v['class']) ? $v['class'] . '->' : null), $v['function'], implode(', ', $v['args'])));
+            $buffer->add(sprintf("#%d %s(%s): %s(%s)", $k,  $v['file'], $v['line'], (isset($v['class']) ? $v['class'] . '->' : null), $v['function'], implode(', ', $v['args'])));
         }
     }
 
