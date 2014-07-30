@@ -21,37 +21,44 @@ namespace PBergman\Fork;
 class ExitHandler
 {
     /** @var \SplObjectStorage  */
-    private static $callback;
+    private $callback;
+    /** @var Identifier  */
+    private $identifier;
 
-    public static function initialize()
+    /**
+     * constructor setup SplObjectStorage
+     * and registered shutdown function
+     *
+     * @param Identifier $identifier
+     */
+    public function __construct(Identifier $identifier)
     {
-        self::$callback = new \SplObjectStorage();
+        $this->identifier = $identifier;
+        $this->callback   = new \SplObjectStorage();
 
         register_shutdown_function(function(){
-
-            self::$callback->rewind();
-
-            while(self::$callback->valid()) {
-
-                if (is_null(self::$callback->getInfo()) || self::$callback->getInfo() === Process::getPid()) {
-                    $callback = self::$callback->current();
+            $this->callback->rewind();
+            while($this->callback->valid()) {
+                if (is_null($this->callback->getInfo()) || $this->callback->getInfo() === Process::getPid()) {
+                    $callback = $this->callback->current();
                     call_user_func($callback);
-                    if (!is_null(self::$callback->getInfo())) {
-                        self::$callback->detach($callback);
+                    // Do not attach a global callback
+                    if (!is_null($this->callback->getInfo())) {
+                        $this->callback->detach($callback);
                     }
                 }
-
-                self::$callback->next();
+                $this->callback->next();
             }
         });
     }
 
+
     /**
      * @return \SplObjectStorage
      */
-    public static function getCallbacks()
+    public function getCallbacks()
     {
-        return self::$callback;
+        return $this->callback;
     }
 
     /**
@@ -63,16 +70,35 @@ class ExitHandler
      *
      * @return  $this
      */
-    public static function register(callable $callback, $global = false)
+    public function register(callable $callback, $global = false)
     {
-        self::$callback->attach($callback, ($global ? null : Process::getPid()));
+        $this->$callback->attach($callback, ($global ? null : $this->identifier->getPid()));
     }
 
     /**
      * Remove all registered exit callbacks
+     * that are not bound to this process
      */
-    public static function clear()
+    public function clear()
     {
-        self::$callback->removeAll(self::$callback);
+        $this->callback->rewind();
+
+        while($this->callback->valid()) {
+
+            if (!is_null($this->callback->getInfo()) && $this->callback->getInfo() !== $this->identifier->getPid()) {
+                $this->callback->detach($this->callback->current());
+            }
+
+            $this->callback->next();
+        }
+
+    }
+
+    /**
+     * clear all callback from storage
+     */
+    public function clearAll()
+    {
+        $this->callback->removeAll($this->callback);
     }
 }

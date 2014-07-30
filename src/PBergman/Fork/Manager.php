@@ -6,7 +6,6 @@
 
 namespace PBergman\Fork;
 
-use PBergman\Fork\Output\LogFormatter;
 use PBergman\SystemV\IPC\Messages\ServiceException as MessagesException;
 use PBergman\SystemV\IPC\Semaphore\Service as SemaphoreService;
 use PBergman\SystemV\IPC\Messages\Receiver;
@@ -15,9 +14,15 @@ use PBergman\Fork\Work\AbstractWork;
 use PBergman\Fork\Output\OutputInterface;
 use PBergman\Fork\Output\Output;
 use PBergman\Fork\Work\Controller;
+use PBergman\Fork\Output\LogFormatter;
+
 
 class Manager
 {
+    /** @var Identifier */
+    protected $identifier;
+    /** @var  ExitHandler */
+    protected $exitHandler;
     /** @var int  */
     private $workers = 1;
     /** @var \SplObjectStorage  */
@@ -49,13 +54,7 @@ class Manager
             $this->output = $output;
         }
 
-        $this->initialize();
-
-        $this->jobs     = new \SplObjectStorage();
-        $this->pid      = Process::getPid();
-        $this->tokenSem = ftok($file, 'm');
-        $this->tokenMsg = ftok($file, 's');
-
+        $this->initialize($file);
     }
 
     /**
@@ -63,14 +62,20 @@ class Manager
      * initialize/setup dependencies
      *
      */
-    protected function initialize()
+    protected function initialize($file)
     {
-        // Initialize process so it knows this parent;
-        Process::initialize();
         // Enable custom error handler
         ErrorHandler::enable($this->output);
         // register exit handler
-        ExitHandler::initialize();
+        $this->identifier  = new Identifier();
+        $this->exitHandler = new ExitHandler($this->identifier);
+        $this->exitHandler->register(function(){
+            // Make sure children die on (error) exit and cleanup
+            if (ErrorHandler::hasError(E_ERROR | E_USER_ERROR)) {
+                $this->killChildren();
+            }
+            $this->cleanup();
+        });
 
         // Setup signal handler && Trap Ctrl-C && Ctrl-/
         $this->signalHandler = new SignalHandler();
@@ -81,19 +86,10 @@ class Manager
             }
         });
 
-        // Make sure children die on (error) exit and cleanup
-        ExitHandler::register(function() {
-            if (Process::isParent()) {
-                if (ErrorHandler::hasError(E_ERROR | E_USER_ERROR)) {
-                    $this->killChildren();
-                }
-
-                $this->cleanup();
-            }
-        });
-
-
-
+        $this->jobs     = new \SplObjectStorage();
+        $this->pid      = $this->identifier->getPid();
+        $this->tokenSem = ftok($file, 'm');
+        $this->tokenMsg = ftok($file, 's');
     }
 
     /**
@@ -138,7 +134,7 @@ class Manager
             $this->jobs->detach($work);
         }
 
-        if (Process::isParent()) {
+        if ($this->identifier->isParent()) {
 
             // Wait for children.....
             while(array_sum($this->pids) >= 1) {
