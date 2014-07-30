@@ -6,8 +6,6 @@
 
 namespace PBergman\SystemV\IPC\Messages;
 
-use PBergman\SystemV\IPC\Helpers\ErrorsMapping;
-
 /**
  * Class Receive
  *
@@ -57,7 +55,7 @@ class Receiver
     public function pull()
     {
         if (false === $this->success = @msg_receive($this->connection, $this->type, $this->returnedType, $this->maxSize, $this->data, $this->unserialize, $this->flags, $this->errorCode)) {
-            $this->error  = ErrorsMapping::getMessage($this->errorCode);
+            $this->error  = posix_strerror($this->errorCode);
         } else {
             $this->status = msg_stat_queue($this->connection);
         }

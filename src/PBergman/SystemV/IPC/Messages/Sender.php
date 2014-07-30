@@ -6,8 +6,6 @@
 
 namespace PBergman\SystemV\IPC\Messages;
 
-use PBergman\SystemV\IPC\Helpers\ErrorsMapping;
-
 /**
  * Class Sender
  *
@@ -53,7 +51,7 @@ class Sender
     public function push()
     {
         if(false === $this->success = @msg_send($this->connection, $this->type, $this->data, $this->serialize, $this->blocking, $this->errorCode)) {
-            $this->error  = ErrorsMapping::getMessage($this->errorCode);
+            $this->error  = posix_strerror($this->errorCode);
         } else {
             $this->status = msg_stat_queue($this->connection);
         }

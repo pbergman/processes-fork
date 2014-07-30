@@ -6,13 +6,16 @@
 
 namespace PBergman\Fork\Work;
 
+use PBergman\Fork\ExitHandler;
 use PBergman\Fork\Output\LogFormatter;
+use PBergman\Fork\Process;
+use PBergman\Fork\SignalHandler;
 use PBergman\SystemV\IPC\Semaphore\Service as SemaphoreService;
 use PBergman\SystemV\IPC\Messages\Sender;
 use PBergman\Fork\Output\OutputInterface;
-use PBergman\Fork\Helpers\ExitHelper   as ExitHandler;
+use PBergman\Fork\Helpers\ExitHelper   as ExitHandlers;
+use PBergman\Fork\ErrorHandler;
 
-declare(ticks = 1);
 /**
  * Class Controller
  *
@@ -20,6 +23,8 @@ declare(ticks = 1);
  */
 class Controller
 {
+    /** @var SignalHandler  */
+    private $signal;
     /** @var OutputInterface  */
     private $output;
     /** @var Sender  */
@@ -33,14 +38,16 @@ class Controller
      * @param OutputInterface   $output
      * @param Sender            $sender
      * @param SemaphoreService  $sem
+     * @param SignalHandler     $signal
      */
-    public function __construct(OutputInterface $output, Sender $sender, SemaphoreService $sem)
+    public function __construct(OutputInterface $output, Sender $sender, SemaphoreService $sem, SignalHandler $signal)
     {
         // For debugging set start time
         $this->start  = (int) microtime(true);
         $this->sender = $sender;
         $this->output = $output;
         $this->sem    = $sem;
+        $this->signal = $signal;
     }
 
     /**
@@ -50,11 +57,10 @@ class Controller
      */
     public function run(AbstractWork &$object)
     {
-
         $this->output->write((new LogFormatter(LogFormatter::PROCESS_CHILD))->format(sprintf('Starting: %s', $object->getName())));
 
         // Set pids
-        $object->setPid(posix_getpid());
+        $object->setPid(Process::getPid());
 
         // Setup exit function and check timeout
         $this->setupExit($object)
@@ -89,53 +95,48 @@ class Controller
      */
     protected function setupExit(AbstractWork $object)
     {
-        $onExit = new ExitHandler();
-        $onExit
-            /**
-             * Handling fatal errors and save object back to message queue
-             */
-            ->addCallback(function(AbstractWork $object, Sender $sender, $startTime){
 
-                if (null !== $error = error_get_last()) {
-                    if ($error['type'] & (E_ERROR | E_USER_ERROR)) {
-                        $object->setSuccess(false)
-                            ->setExitCode(255)
-                            ->setDuration((microtime(true) - $startTime))
-                            ->setPid(posix_getpid())
-                            ->setUsage(memory_get_usage())
-                            ->setError(sprintf("Fatal error: %s on line %s in file %s", $error['message'], $error['line'], $error['file']));
-                    }
-                }
+        $sender    = $this->sender;
+        $start     = $this->start;
+        $output    = $this->output;
+        $semaphore = $this->sem;
 
-                $send = $sender->setData($object)
-                               ->setType(posix_getpid())
-                               ->push();
+        ExitHandler::clear();
+        ExitHandler::register(function() use ($object, $sender, $start, $output, $semaphore) {
 
-                if (false === $send->isSuccess()) {
-                    trigger_error(sprintf('Failed to send message, %s(%s)', $sender->getError(), $sender->getErrorCode()), E_USER_ERROR);
-                }
+            // Handling fatal errors and save object back to message queue
+            if (false !== $error = ErrorHandler::hasError(E_ERROR | E_USER_ERROR, true)) {
+                $object->setSuccess(false)
+                    ->setExitCode(255)
+                    ->setDuration((microtime(true) - $start))
+                    ->setPid(posix_getpid())
+                    ->setUsage(memory_get_usage())
+                    ->setError(sprintf("Fatal error: %s on line %s in file %s", $error['message'], $error['line'], $error['file']));
+            }
 
-        }, array($object, $this->sender, $this->start))
-            /**
-             * Print some debugging when finished
-             */
-            ->addCallback(function(OutputInterface $output, AbstractWork $object){
 
-                $output->write((new LogFormatter(LogFormatter::PROCESS_CHILD))->format(
-                    sprintf('Finished: %s (%s MB/%s s)',
-                        $object->getName(),
-                        round($object->getUsage() /  1024 / 1024, 2),
-                        round($object->getDuration(), 2)
-                    )
-                ));
+            $send = $sender->setData($object)
+                           ->setType(posix_getpid())
+                           ->push();
 
-        }, array($this->output, $object))
-            /**
-             * Release semaphore for queue when finished
-             */
-            ->addCallback(function(SemaphoreService $sem){
-                $sem->release();
-        }, array($this->sem));
+            if (false === $send->isSuccess()) {
+                trigger_error(sprintf('Failed to send message, %s(%s)', $sender->getError(), $sender->getErrorCode()), E_USER_ERROR);
+
+            }
+
+            // Print some debugging when finished
+            $output->write((new LogFormatter(LogFormatter::PROCESS_CHILD))->format(
+                sprintf('Finished: %s (%s MB/%s s)',
+                    $object->getName(),
+                    round($object->getUsage() /  1024 / 1024, 2),
+                    round($object->getDuration(), 2)
+                )
+            ));
+
+            // Release semaphore for queue
+            $semaphore->release();
+
+        });
 
         return $this;
     }
@@ -149,13 +150,12 @@ class Controller
     protected function checkTimeOut(AbstractWork &$object)
     {
         if (null !== $timeout = $object->getTimeout()) {
-            pcntl_alarm($timeout);
-            pcntl_signal(SIGALRM, function() use ($timeout, &$object){
+            $this->signal->setAlarm($timeout, function() use ($timeout, $object) {
                 $message = sprintf('timeout exceeded: %s second(s)', $timeout);
-                $object->setSuccess(false)
-                       ->setError($message);
+                $object->setSuccess(false)->setError($message);
                 trigger_error($message, E_USER_ERROR);
             });
+
         }
 
         return $this;
