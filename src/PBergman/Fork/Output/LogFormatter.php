@@ -18,7 +18,7 @@ class LogFormatter implements FormatInterface
     const PROCESS_WARNING  = 8;
 
     protected $pid;
-    protected $id;
+    protected $label;
 
     protected $debug = array(
         self::PROCESS_PARENT    => 'PARENT',
@@ -27,10 +27,21 @@ class LogFormatter implements FormatInterface
         self::PROCESS_WARNING   => 'WARNING',
     );
 
-    function __construct($id = self::PROCESS_PARENT, $pid = null)
+    /**
+     * @param int   $label          Label, can be one predefined constant or custom string
+     * @param null  $pid            the pid of process, if left to null it will get pid from current process
+     * @param bool  $shortLabel     with custom label and this true it will shorten the label to 5 characters and
+     *                              append .. to end of string so for example SomeClassName becomes SomeC..
+     */
+    function __construct($label = self::PROCESS_PARENT, $pid = null, $shortLabel = true)
     {
-        $this->pid = (is_null($pid)) ? posix_getpid() : $pid;
-        $this->id  = $id;
+        $this->pid   = (is_null($pid)) ? posix_getpid() : $pid;
+
+        if (is_int($label) && array_key_exists($label, $this->debug)) {
+            $this->label = $this->debug[$label];
+        } else {
+            $this->label = ($shortLabel) ? substr($label, 0, 5) . '..' : $label;
+        }
     }
 
 
@@ -43,6 +54,6 @@ class LogFormatter implements FormatInterface
      */
     public function format($message)
     {
-        return sprintf("%s [%-7s] [%-6d] %s",  date('Y-m-d H:i:s'), $this->debug[$this->id], $this->pid, $message);
+        return sprintf("%s [%-7s] [%-5d] %s",  date('Y-m-d H:i:s'), $this->label, $this->pid, $message);
     }
 }
