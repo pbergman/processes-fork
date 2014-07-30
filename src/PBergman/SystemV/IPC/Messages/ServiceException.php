@@ -33,7 +33,7 @@ class ServiceException extends \Exception
      */
     public static function failedToReceive($error)
     {
-        throw new self(sprintf("Could not receive message, %s(%s)", ErrorsMapping::getMessage($error), (int) $error));
+        throw new self(sprintf("Could not receive message, %s(%s)", posix_strerror($error), (int) $error));
     }
 
     /**
@@ -75,7 +75,7 @@ class ServiceException extends \Exception
      */
     public static function failedToSend($error)
     {
-        throw new self(sprintf("Could not send message, %s(%s)", ErrorsMapping::getMessage($error), (int) $error));
+        throw new self(sprintf("Could not send message, %s(%s)", posix_strerror($error), (int) $error));
     }
 
     /**
