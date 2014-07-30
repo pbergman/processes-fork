@@ -12,8 +12,6 @@ use PBergman\SystemV\IPC\Semaphore\Service as SemaphoreService;
 use PBergman\SystemV\IPC\Messages\Receiver;
 use PBergman\SystemV\IPC\Messages\Service as MessagesService;
 use PBergman\Fork\Work\AbstractWork;
-use PBergman\Fork\Helpers\ErrorHelper as ErrorHandler;
-use PBergman\Fork\Helpers\ExitHelper as ExitHandler;
 use PBergman\Fork\Output\OutputInterface;
 use PBergman\Fork\Output\Output;
 use PBergman\Fork\Work\Controller;
@@ -24,8 +22,6 @@ class Manager
     private $workers = 1;
     /** @var \SplObjectStorage  */
     private $jobs;
-    /** @var int  */
-    private $state;
     /** @var OutputInterface  */
     private $output;
     /** @var array  */
@@ -38,9 +34,8 @@ class Manager
     private $tokenSem;
     /** @var int  */
     private $tokenMsg;
-
-    const STATE_CHILD  = 1;
-    const STATE_PARENT = 2;
+    /** @var SignalHandler  */
+    private $signalHandler;
 
     /**
      * @param OutputInterface   $output
@@ -54,19 +49,52 @@ class Manager
             $this->output = $output;
         }
 
-        // Enable custom error handler
-        ErrorHandler::enable($this->output);
+        $this->initialize();
 
-        $this->jobs   = new \SplObjectStorage();
-        $this->state  = self::STATE_PARENT;
-        $this->pid    = posix_getpid();
-
+        $this->jobs     = new \SplObjectStorage();
+        $this->pid      = Process::getPid();
         $this->tokenSem = ftok($file, 'm');
         $this->tokenMsg = ftok($file, 's');
 
-        $this->setupExit();
     }
 
+    /**
+     *
+     * initialize/setup dependencies
+     *
+     */
+    protected function initialize()
+    {
+        // Initialize process so it knows this parent;
+        Process::initialize();
+        // Enable custom error handler
+        ErrorHandler::enable($this->output);
+        // register exit handler
+        ExitHandler::initialize();
+
+        // Setup signal handler && Trap Ctrl-C && Ctrl-/
+        $this->signalHandler = new SignalHandler();
+        $this->signalHandler->register(array(SIGINT, SIGQUIT), function($signal) {
+            if(Process::isParent()) {
+                $this->killChildren();
+                exit($signal);
+            }
+        });
+
+        // Make sure children die on (error) exit and cleanup
+        ExitHandler::register(function() {
+            if (Process::isParent()) {
+                if (ErrorHandler::hasError(E_ERROR | E_USER_ERROR)) {
+                    $this->killChildren();
+                }
+
+                $this->cleanup();
+            }
+        });
+
+
+
+    }
 
     /**
      * main method that spawns children
@@ -98,9 +126,8 @@ class Manager
                     throw new \Exception('Could not fork process');
                     break;
                 case 0:     // @child
-                    $this->state = self::STATE_CHILD;
                     $this->jobs  = null;
-                    $controller  = new Controller($this->output, $queue->getSender(), $sem);
+                    $controller  = new Controller($this->output, $queue->getSender(), $sem, $this->signalHandler);
                     $controller->run($work);
                     break;
                 default:    // @parent
@@ -111,7 +138,7 @@ class Manager
             $this->jobs->detach($work);
         }
 
-        if ($this->state === self::STATE_PARENT) {
+        if (Process::isParent()) {
 
             // Wait for children.....
             while(array_sum($this->pids) >= 1) {
@@ -164,6 +191,7 @@ class Manager
                                    ->isSuccess(false);
 
                         } elseif(pcntl_wifsignaled($status)) {
+
 
                             $object->setExitCode(pcntl_wexitstatus($status))
                                    ->setError(sprintf('Signal: %s caused this child to exit', pcntl_wtermsig($status)))
@@ -239,7 +267,6 @@ class Manager
     public function addJob(AbstractWork $job)
     {
         $this->jobs->attach($job);
-
         return $this;
     }
 
@@ -262,45 +289,25 @@ class Manager
     }
 
     /**
-     * exit helper, that will kill children on error
-     * and removes semaphore and message queue
+     * helper to kill all running children
      */
-    private function setupExit()
+    protected function killChildren()
     {
-        $onExit = new ExitHandler();
-        $onExit->addCallback(function($state, $pids, OutputInterface $output){
-
-            if ($state === Manager::STATE_PARENT) {
-                if (null !== $error = error_get_last()) {
-
-                    if ($error['type'] & (E_ERROR | E_USER_ERROR)) {
-                        foreach($pids as $pid => $isRunning) {
-                            if ($isRunning) {
-                                $output->write((new LogFormatter())->format(sprintf('Killing child: %s', $pid)));
-                                posix_kill($pid, SIGKILL);
-                            }
-                        }
-                    }
-                }
-
-                $this->cleanup();
-
+        foreach($this->pids as $pid => $isRunning) {
+            if ($isRunning) {
+                posix_kill($pid, SIGKILL);      // Send kill signal
+                $this->output->write((new LogFormatter())->format(sprintf('Send SIGKILL to child(%s)', $pid)));
             }
-
-        }, array(&$this->state, &$this->pids, $this->output));
-
-        return $this;
-
+        }
     }
-
 
     /***
      * cleanup for removing resources
      */
     public function cleanup()
     {
-        (new MessagesService($this->tokenMsg, 0660))->remove();
-        (new SemaphoreService($this->tokenSem, $this->workers, 0660, false))->remove();
+        (new MessagesService($this->tokenMsg))->remove();
+        (new SemaphoreService($this->tokenSem))->remove();
         $this->jobs->removeAll($this->jobs);
     }
 }
