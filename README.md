@@ -11,7 +11,7 @@ Simple example:
 <?php
 
 use PBergman\Fork\Work\AbstractWork;
-use PBergman\Fork\Manager;
+use PBergman\Fork\ForkManager;
 use PBergman\Fork\Helpers\OutputHelper as OutputHandler;
 
 class job extends AbstractWork
@@ -54,7 +54,7 @@ for($i =0 ; $i < 10; $i++){
     $stack[] = new Job();
 }
 
-$fm = new Manager();
+$fm = new ForkManager();
 $fm->setWorkers(5)      // add 5 process forks
     ->setJobs($stack)   // add work
     ->run();            // start process
@@ -78,14 +78,14 @@ This will give a output like :
 2014-07-15 12:22:34 [ERROR  ] [28667 ] #1 (): PBergman\Fork\Helpers\ErrorHelper->(PBergman\Fork\Helpers\{closure})
 2014-07-15 12:22:34 [ERROR  ] [28667 ] #2 /var/www/processes-fork/src/PBergman/Fork/Work/Controller.php(147): (trigger_error)
 2014-07-15 12:22:34 [ERROR  ] [28667 ] #3 /var/www/processes-fork/src/PBergman/Fork/Work/Controller.php(67): PBergman\Fork\Work\Controller->(PBergman\Fork\Work\{closure})
-2014-07-15 12:22:34 [ERROR  ] [28667 ] #4 /var/www/processes-fork/src/PBergman/Fork/Manager.php(76): PBergman\Fork\Work\Controller->(run)
-2014-07-15 12:22:34 [ERROR  ] [28667 ] #5 /var/www/processes-fork/test.php(56): PBergman\Fork\Manager->(run)
+2014-07-15 12:22:34 [ERROR  ] [28667 ] #4 /var/www/processes-fork/src/PBergman/Fork/ForkManager.php(76): PBergman\Fork\Work\Controller->(run)
+2014-07-15 12:22:34 [ERROR  ] [28667 ] #5 /var/www/processes-fork/test.php(56): PBergman\Fork\ForkManager->(run)
 2014-07-15 12:22:34 [CHILD  ] [28667 ] Finished: 28667 (0.47 MB/2.86 s)
 </pre>
 
 ###Methods:
 
-####(PBergman\Fork)Manager:
+####(PBergman\Fork)ForkManager:
 
 #####*__construct($debug = false, OutputHelper $output = null, $file = __FILE__ )*
 when calling a new instance of the class you can add a instance of output helper
@@ -93,7 +93,7 @@ so you can specify a output for example:
 ```
 $debug = new OutputHandler();
 $debug->setStream(fopen('/tmp/output.log', 'a+'));
-$manager = new Manager($debug);
+$forkmanager = new ForkManager($debug);
 ```
 this will print log in /tmp/output.log instead of screen
 
@@ -143,13 +143,13 @@ sysctl -w kernel.msgmnb=128000000
 
 
 ####E_USER_ERROR: Failed to receive message, Arg list too long(7)
-you have to call method setMaxSize from class Manager. And can set the value the same as for example the
+you have to call method setMaxSize from class ForkManager. And can set the value the same as for example the
 same you had set for msgmnb (128000000)
 
 ```php
 
-    $manager = new Manager();
-    $manager->setWorkers(10)
+    $forkmanager = new ForkManager();
+    $forkmanager->setWorkers(10)
             ->setMaxSize(128000000)
             ->setJobs($work)
             ->run();

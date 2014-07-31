@@ -6,15 +6,10 @@
 
 namespace PBergman\Fork\Work;
 
-use PBergman\Fork\ExitHandler;
+use PBergman\Fork\Container;
 use PBergman\Fork\Output\LogFormatter;
-use PBergman\Fork\Process;
-use PBergman\Fork\SignalHandler;
-use PBergman\SystemV\IPC\Semaphore\Service as SemaphoreService;
-use PBergman\SystemV\IPC\Messages\Sender;
-use PBergman\Fork\Output\OutputInterface;
-use PBergman\Fork\Helpers\ExitHelper   as ExitHandlers;
 use PBergman\Fork\ErrorHandler;
+use PBergman\SystemV\IPC\Messages\Sender;
 
 /**
  * Class Controller
@@ -23,31 +18,21 @@ use PBergman\Fork\ErrorHandler;
  */
 class Controller
 {
-    /** @var SignalHandler  */
-    private $signal;
-    /** @var OutputInterface  */
-    private $output;
     /** @var Sender  */
     private $sender;
-    /** @var SemaphoreService  */
-    private $sem;
     /** @var int  */
     private $start;
 
     /**
-     * @param OutputInterface   $output
-     * @param Sender            $sender
-     * @param SemaphoreService  $sem
-     * @param SignalHandler     $signal
+     * @param Sender      $sender
+     * @param Container   $container
      */
-    public function __construct(OutputInterface $output, Sender $sender, SemaphoreService $sem, SignalHandler $signal)
+    public function __construct(Sender $sender, Container $container)
     {
         // For debugging set start time
-        $this->start  = (int) microtime(true);
-        $this->sender = $sender;
-        $this->output = $output;
-        $this->sem    = $sem;
-        $this->signal = $signal;
+        $this->start     = (int) microtime(true);
+        $this->sender    = $sender;
+        $this->container = $container;
     }
 
     /**
@@ -57,10 +42,13 @@ class Controller
      */
     public function run(AbstractWork &$object)
     {
-        $this->output->write((new LogFormatter(LogFormatter::PROCESS_CHILD))->format(sprintf('Starting: %s', $object->getName())));
+        /** @var \PBergman\Fork\Output\OutputInterface $output */
+        $output = $this->container['output'];
+
+        $output->write((new LogFormatter(LogFormatter::PROCESS_CHILD))->format(sprintf('Starting: %s', $object->getName())));
 
         // Set pids
-        $object->setPid(Process::getPid());
+        $object->setPid($this->container['helper.identifier']->getPid());
 
         // Setup exit function and check timeout
         $this->setupExit($object)
@@ -69,7 +57,7 @@ class Controller
         // Try execute child process
         try {
 
-            $object->execute($this->output);
+            $object->execute($output);
             $object->setDuration((microtime(true) - $this->start))
                    ->setUsage(memory_get_usage());
 
@@ -96,13 +84,16 @@ class Controller
     protected function setupExit(AbstractWork $object)
     {
 
-        $sender    = $this->sender;
-        $start     = $this->start;
-        $output    = $this->output;
-        $semaphore = $this->sem;
+        $sender     = $this->sender;
+        $start      = $this->start;
+        /** @var \PBergman\Fork\Output\Output $output */
+        $output     = $this->container['output'];
+        /** @var \PBergman\SystemV\IPC\Semaphore\Service $semaphore */
+        $semaphore  = $this->container['semaphore'];
+        /** @var \PBergman\Fork\Helper\ExitHelper $exitHelper */
+        $exitHelper = $this->container['helper.exit'];
 
-        ExitHandler::clear();
-        ExitHandler::register(function() use ($object, $sender, $start, $output, $semaphore) {
+        $exitHelper->clear()->register(function()  use ($object, $sender, $start, $output, $semaphore) {
 
             // Handling fatal errors and save object back to message queue
             if (false !== $error = ErrorHandler::hasError(E_ERROR | E_USER_ERROR, true)) {
@@ -150,7 +141,9 @@ class Controller
     protected function checkTimeOut(AbstractWork &$object)
     {
         if (null !== $timeout = $object->getTimeout()) {
-            $this->signal->setAlarm($timeout, function() use ($timeout, $object) {
+            /* @var \PBergman\Fork\Helper\SignalHelper $signal */
+            $signal = $this->container['helper.signal'];
+            $signal->setAlarm($timeout, function() use ($timeout, $object) {
                 $message = sprintf('timeout exceeded: %s second(s)', $timeout);
                 $object->setSuccess(false)->setError($message);
                 trigger_error($message, E_USER_ERROR);
