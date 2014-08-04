@@ -25,11 +25,11 @@ class Container extends BaseContainer
     {
         parent::__construct($this->getDependencies());
 
-        $this['new_semaphore'] = $this->register(function(self $c){
+        $this['semaphore'] = $this->register(function(self $c){
             return new SemaphoreService($c['sem.conf.token'], $c['sem.conf.workers'], 0660, false);
         }, self::STATIC_SERVICE);
 
-        $this['new_messages'] = $this->register(function(self $c){
+        $this['messages'] = $this->register(function(self $c){
             return new MessagesService($c['mess.conf.token'], 0600);
         }, self::STATIC_SERVICE);
 

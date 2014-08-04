@@ -44,8 +44,8 @@ class ForkManager
             $this->container = $container;
         }
 
-        $this->container['sem.conf.token']    = ftok($file, 's');
-        $this->container['mess.conf.token']   = ftok($file, 'm');
+        $this->container['sem.conf.token']  = ftok($file, 's');
+        $this->container['mess.conf.token'] = ftok($file, 'm');
 
         $this->jobs = new \SplObjectStorage();
         $this->pid  = $this->container['helper.identifier']->getPid();
@@ -93,16 +93,6 @@ class ForkManager
     }
 
     /**
-     * Setup service container for semaphore and message queue
-     */
-    protected function setup()
-    {
-        $this->container['sem.conf.workers'] = $this->workers;
-        $this->container['semaphore'] = function(Container $c) { return $c['new_semaphore']; };
-        $this->container['messages']  = function(Container $c) { return $c['new_messages'];  };
-    }
-
-    /**
      * main method that spawns children
      * end divides the work with workers
      *
@@ -111,11 +101,12 @@ class ForkManager
      */
     public function run()
     {
-        $this->setup();
+        $this->container['sem.conf.workers'] = $this->workers;
+
         $this->jobs->rewind();
 
         /** @var \PBergman\SystemV\IPC\Semaphore\Service $sem */
-        $sem        = $this->container['semaphore'];
+        $semaphore  = $this->container['semaphore'];
         /** @var \PBergman\SystemV\IPC\Messages\Service  $queue */
         $queue      = $this->container['messages'];
         /** @var \PBergman\Fork\Helper\IdentifierHelper $identifier */
@@ -139,7 +130,7 @@ class ForkManager
                     break;
                 case 0:     // @child
                     $this->jobs  = null;
-                    $controller  = new Controller($queue->getSender(), $this->container);
+                    $controller  = new Controller($queue->getSender(), $this->container, $semaphore);
                     $controller->run($work);
                     break;
                 default:    // @parent
@@ -321,8 +312,8 @@ class ForkManager
      */
     public function cleanup()
     {
-        $this->container['new_semaphore']->remove();
-        $this->container['new_messages']->remove();
+        $this->container['semaphore']->remove();
+        $this->container['messages']->remove();
         $this->jobs->removeAll($this->jobs);
     }
 }

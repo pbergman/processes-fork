@@ -10,6 +10,7 @@ use PBergman\Fork\Container;
 use PBergman\Fork\Output\LogFormatter;
 use PBergman\Fork\ErrorHandler;
 use PBergman\SystemV\IPC\Messages\Sender;
+use PBergman\SystemV\IPC\Semaphore\Service as Semaphore;
 
 /**
  * Class Controller
@@ -22,17 +23,21 @@ class Controller
     private $sender;
     /** @var int  */
     private $start;
+    /** @var Semaphore */
+    private $semaphore;
 
     /**
      * @param Sender      $sender
      * @param Container   $container
+     * @param Semaphore   $semaphore
      */
-    public function __construct(Sender $sender, Container $container)
+    public function __construct(Sender $sender, Container $container,Semaphore $semaphore)
     {
         // For debugging set start time
         $this->start     = (int) microtime(true);
         $this->sender    = $sender;
         $this->container = $container;
+        $this->semaphore = $semaphore;
     }
 
     /**
@@ -88,12 +93,10 @@ class Controller
         $start      = $this->start;
         /** @var \PBergman\Fork\Output\Output $output */
         $output     = $this->container['output'];
-        /** @var \PBergman\SystemV\IPC\Semaphore\Service $semaphore */
-        $semaphore  = $this->container['semaphore'];
         /** @var \PBergman\Fork\Helper\ExitHelper $exitHelper */
         $exitHelper = $this->container['helper.exit'];
 
-        $exitHelper->clear()->register(function()  use ($object, $sender, $start, $output, $semaphore) {
+        $exitHelper->clear()->register(function()  use ($object, $sender, $start, $output) {
 
             // Handling fatal errors and save object back to message queue
             if (false !== $error = ErrorHandler::hasError(E_ERROR | E_USER_ERROR, true)) {
@@ -125,7 +128,7 @@ class Controller
             ));
 
             // Release semaphore for queue
-            $semaphore->release();
+            $this->semaphore->release();
 
         });
 
