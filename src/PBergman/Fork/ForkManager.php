@@ -118,7 +118,7 @@ class ForkManager
             $work = $this->jobs->current();
             $work->setParentPid($identifier->getParentPid());
 
-            $sem->acquire();
+            $semaphore->acquire();
 
             $this->sync($queue->getReceiver());
 
