@@ -309,11 +309,13 @@ class ForkManager
 
     /***
      * cleanup for removing resources
+     * @return $this
      */
     public function cleanup()
     {
         $this->container['semaphore']->remove();
         $this->container['messages']->remove();
         $this->jobs->removeAll($this->jobs);
+        return $this;
     }
 }
