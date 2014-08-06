@@ -21,8 +21,9 @@ class SignalHelper
     /**
      * register action by signal
      *
-     * @param int       $signal
-     * @param callable  $callback
+     * @param   int       $signal
+     * @param   callable  $callback
+     * @return  $this
      */
 
     public function register($signal, callable $callback)
@@ -56,6 +57,8 @@ class SignalHelper
                 $this->actions[$sig][] = $callbackHash;
             }
         }
+
+        return $this;
     }
 
     protected function updateCallbacks(callable $callback)

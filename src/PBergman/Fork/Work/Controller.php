@@ -129,7 +129,6 @@ class Controller
 
             // Release semaphore for queue
             $this->semaphore->release();
-
         });
 
         return $this;

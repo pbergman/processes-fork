@@ -10,9 +10,10 @@ Simple example:
 ```php
 <?php
 
+use PBergman\Fork\Container;
 use PBergman\Fork\Work\AbstractWork;
 use PBergman\Fork\ForkManager;
-use PBergman\Fork\Helpers\OutputHelper as OutputHandler;
+use PBergman\Fork\Output;
 
 class job extends AbstractWork
 {
@@ -27,13 +28,13 @@ class job extends AbstractWork
     /**
      * the main method that is called
      *
-     * @param  OutputHandler    $output
+     * @param  Container $container
      * @return mixed
      */
-    public function execute(OutputHandler $output)
+    public function execute(Container $container)
     {
         $sleep = rand(2, 10);
-        $output->debug(sprintf("sleeping %s", $sleep), $this->getPid(), OutputHandler::PROCESS_CHILD);
+        $container['output']->debug(sprintf("sleeping %s", $sleep), $this->getPid(), OutputHandler::PROCESS_CHILD);
         sleep($sleep);
     }
 

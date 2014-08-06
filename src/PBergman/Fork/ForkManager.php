@@ -31,7 +31,10 @@ class ForkManager
     private $pids = array();
     /** @var Container */
     private $container;
-
+    /** @var  callable */
+    private $postForkChild;
+    /** @var  callable */
+    private $postForkParent;
     /**
      * @param Container  $container
      * @param string     $file       files used to generate tokens
@@ -130,10 +133,12 @@ class ForkManager
                     break;
                 case 0:     // @child
                     $this->jobs  = null;
+                    $this->checkPostForkCallback();
                     $controller  = new Controller($queue->getSender(), $this->container, $semaphore);
                     $controller->run($work);
                     break;
                 default:    // @parent
+                    $this->checkPostForkCallback();
                     $this->pids[$pid] = 1;
             }
 
@@ -158,6 +163,20 @@ class ForkManager
         }
 
         return $this;
+    }
+
+    /**
+     * Check the post fork callbacks
+     */
+    protected function checkPostForkCallback()
+    {
+        if ($this->container['helper.identifier']->isParent()) {
+            $callback = $this->postForkParent;
+            $callback($this);
+        } else {
+            $callback = $this->postForkChild;
+            $callback($this);
+        }
     }
 
     /**
@@ -320,18 +339,28 @@ class ForkManager
     }
 
     /**
-     * @return Container
+     * set callback that is called after
+     * creation of child in child process
+     *
+     * @param   callable $postFork
+     * @return  $this
      */
-    public function getContainer()
+    public function setPostForkParent(callable $postFork)
     {
-        return $this->container;
+        $this->postForkParent['p'] = $postFork;
+        return $this;
     }
 
     /**
-     * @param Container $container
+     * set callback that is called after
+     * creation of child in parent process
+     *
+     * @param   callable $postFork
+     * @return  $this
      */
-    public function setContainer(Container $container)
+    public function setPostForkChild(callable $postFork)
     {
-        $this->container = $container;
+        $this->postForkChild['c'] = $postFork;
+        return $this;
     }
 }
