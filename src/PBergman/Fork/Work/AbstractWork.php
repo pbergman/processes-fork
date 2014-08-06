@@ -13,7 +13,7 @@ use PBergman\Fork\Container;
  *
  * @package PBergman\Fork\Work
  */
-abstract class AbstractWork
+abstract class AbstractWork implements \Countable
 {
     /** @var int */
     protected $ppid;
@@ -254,5 +254,13 @@ abstract class AbstractWork
         }
 
         return $this;
+    }
+
+    /**
+     * @return int|mixed
+     */
+    public function count()
+    {
+        return $this->result;
     }
 }
