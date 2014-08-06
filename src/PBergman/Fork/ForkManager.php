@@ -170,11 +170,9 @@ class ForkManager
      */
     protected function checkPostForkCallback()
     {
-        if ($this->container['helper.identifier']->isParent()) {
-            $callback = $this->postForkParent;
-            $callback($this);
-        } else {
-            $callback = $this->postForkChild;
+        $callback = ($this->container['helper.identifier']->isParent()) ? $this->postForkParent : $this->postForkChild;
+
+        if (!is_null($callback ) && is_callable($callback)) {
             $callback($this);
         }
     }
@@ -347,7 +345,7 @@ class ForkManager
      */
     public function setPostForkParent(callable $postFork)
     {
-        $this->postForkParent['p'] = $postFork;
+        $this->postForkParent = $postFork;
         return $this;
     }
 
@@ -360,7 +358,25 @@ class ForkManager
      */
     public function setPostForkChild(callable $postFork)
     {
-        $this->postForkChild['c'] = $postFork;
+        $this->postForkChild = $postFork;
+        return $this;
+    }
+
+    /**
+     * @return Container
+     */
+    public function getContainer()
+    {
+        return $this->container;
+    }
+
+    /**
+     * @param   Container $container
+     * @return  $this
+     */
+    public function setContainer(Container $container)
+    {
+        $this->container = $container;
         return $this;
     }
 }
