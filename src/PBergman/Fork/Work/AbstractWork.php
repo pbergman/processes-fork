@@ -16,23 +16,23 @@ use PBergman\Fork\Output\OutputInterface;
 abstract class AbstractWork
 {
     /** @var int */
-    private $ppid;
+    protected $ppid;
     /** @var int */
-    private $pid;
+    protected $pid;
     /** @var int  */
-    private $exitCode = 0;
+    protected $exitCode = 0;
     /** @var int */
-    private $usage;
+    protected $usage;
     /** @var int */
-    private $duration;
+    protected $duration;
     /** @var bool  */
-    private $success = true;
+    protected $success = true;
     /** @var  string */
-    private $error;
+    protected $error;
     /** @var mixed */
-    private $result;
+    protected $result;
     /** @var  int */
-    private $timeout;
+    protected $timeout;
 
     /**
      * the main method that is called

@@ -105,7 +105,7 @@ class ForkManager
 
         $this->jobs->rewind();
 
-        /** @var \PBergman\SystemV\IPC\Semaphore\Service $sem */
+        /** @var \PBergman\SystemV\IPC\Semaphore\Service $semaphore */
         $semaphore  = $this->container['semaphore'];
         /** @var \PBergman\SystemV\IPC\Messages\Service  $queue */
         $queue      = $this->container['messages'];
@@ -237,7 +237,7 @@ class ForkManager
     /**
      * get defined jobs
      *
-     * @return array
+     * @return \SplObjectStorage
      */
     public function getJobs()
     {
