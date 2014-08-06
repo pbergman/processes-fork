@@ -62,7 +62,7 @@ class Controller
         // Try execute child process
         try {
 
-            $object->execute($output);
+            $object->execute($this->container);
             $object->setDuration((microtime(true) - $this->start))
                    ->setUsage(memory_get_usage());
 

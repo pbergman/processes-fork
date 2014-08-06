@@ -6,7 +6,7 @@
 
 namespace PBergman\Fork\Work;
 
-use PBergman\Fork\Output\OutputInterface;
+use PBergman\Fork\Container;
 
 /**
  * Class AbstractWork
@@ -37,10 +37,10 @@ abstract class AbstractWork
     /**
      * the main method that is called
      *
-     * @param   OutputInterface  $output
+     * @param   Container  $container
      * @return  mixed
      */
-    abstract public function execute(OutputInterface $output);
+    abstract public function execute(Container $container);
 
     /**
      * a name identifier for logs

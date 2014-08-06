@@ -318,4 +318,20 @@ class ForkManager
         $this->jobs->removeAll($this->jobs);
         return $this;
     }
+
+    /**
+     * @return Container
+     */
+    public function getContainer()
+    {
+        return $this->container;
+    }
+
+    /**
+     * @param Container $container
+     */
+    public function setContainer(Container $container)
+    {
+        $this->container = $container;
+    }
 }
