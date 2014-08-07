@@ -11,13 +11,10 @@ namespace PBergman\Container;
  *
  * @package PBergman\Container
  */
-class Service implements \ArrayAccess
+class Service implements \ArrayAccess, \Countable
 {
-    const STATIC_SERVICE  = 1;
-    const PARAMETER       = 2;
-
     /** @var array */
-    protected $container;
+    protected $container = array();
     /** @var array */
     protected $raw;
     /** @var \SplObjectStorage  */
@@ -30,19 +27,36 @@ class Service implements \ArrayAccess
     /**
      * construct of container
      *
-     * service and parameters can be passed as argument here
-     *
      * @param array $data
      */
     function __construct(array $data = array())
     {
         $this->services   = new \SplObjectStorage();
         $this->parameters = new \SplObjectStorage();
+    }
 
+    /**
+     * service and parameters passed as argument here
+     * to register a stack of parameters/services @ once
+     *
+     * @param array $data
+     */
+    public function addArray(array $data)
+    {
         foreach ($data as $key => $value) {
             $this->offsetSet($key, $value);
         }
+    }
 
+    /**
+     * get all names of registered
+     * services and parameters
+     *
+     * @return array
+     */
+    public function getNames()
+    {
+        return array_keys($this->container);
     }
 
     /**
@@ -151,44 +165,53 @@ class Service implements \ArrayAccess
     }
 
     /**
-     * when register a callable new service/parameter it will see it as a
-     * service and will get the same instance as once called. If you want
-     * a new instance on calling the service every time you have to register
-     * the service like :
-     *
-     *  $c = new Container();
-     *  $c['foo'] = $c->register(function{
-     *    return new stdClass();
-     *  }, Container::STATIC_SERVICE);
-     *
-     *  so every time you call $c['foo'] a new instance will be returned
-     *
-     *  When you need to register a callable parameter you can register it like:
-     *
-     *  $c = new Container();
-     *  $c['foo'] = $c->register(function{
-     *    return rand(1,100);
-     *  }, Container::PARAMETER);
-     *
-     *  echo $c['foo']() // Will output random between 1 and 100
-     *
-     * @param   callable    $data
-     * @param   int         $state
-     *
-     * @return  callable
+     * @return array|int
      */
-    public function register(callable $data, $state = self::PARAMETER)
+    public function count()
     {
-        switch ($state) {
-            case self::PARAMETER:
-                $this->parameters->attach($data);
-                break;
-            case self::STATIC_SERVICE:
-                $this->services->attach($data);
-                break;
-
-        }
-
-        return $data;
+        return count($this->container);
     }
+
+    /**
+     * magic method so factory class can call on the protected properties
+     *
+     * @param   $id
+     * @return  null
+     */
+    public function __get($id)
+    {
+        if (property_exists($this, $id) && next(debug_backtrace())['class'] == __NAMESPACE__ . '\Factory') {
+            return $this->$id;
+        } else {
+            $trace = debug_backtrace();
+            trigger_error(sprintf('Undefined property: %s::$%s in %s(%s)', $trace[0]['class'], $id, $trace[0]['file'], $trace[0]['line']), E_USER_NOTICE);
+            return null;
+        }
+    }
+
+    /**
+     * magic method so factory class can set the protected properties
+     *
+     * @param $id
+     * @param $value
+     */
+    public function __set($id, $value)
+    {
+        if (property_exists($this, $id) && next(debug_backtrace())['class'] == __NAMESPACE__ . '\Factory') {
+            $this->$name = $value;
+        }
+    }
+
+    /**
+     * Get factory
+     *
+     * @return Factory
+     */
+    public function getFactory()
+    {
+        return new Factory($this);
+    }
+
+
+
 }

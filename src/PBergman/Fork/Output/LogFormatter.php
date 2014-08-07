@@ -54,6 +54,6 @@ class LogFormatter implements FormatInterface
      */
     public function format($message)
     {
-        return sprintf("%s [%-7s] [%-5d] %s",  date('Y-m-d H:i:s'), $this->label, $this->pid, $message);
+        return sprintf("%s [%-7s] [%05d] %s",  date('Y-m-d H:i:s'), $this->label, $this->pid, $message);
     }
 }

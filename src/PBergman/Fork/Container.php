@@ -23,25 +23,31 @@ class Container extends BaseContainer
 {
     function __construct()
     {
-        parent::__construct($this->getDependencies());
-
-        $this['semaphore'] = $this->register(function(self $c){
-            return new SemaphoreService($c['sem.conf.token'], $c['sem.conf.workers'], 0660, false);
-        }, self::STATIC_SERVICE);
-
-        $this['messages'] = $this->register(function(self $c){
-            return new MessagesService($c['mess.conf.token'], 0600);
-        }, self::STATIC_SERVICE);
-
+        parent::__construct();
+        parent::addArray($this->getDependencies());
     }
 
     protected function getDependencies()
     {
         return array(
-            'helper.identifier' => function() { return new IdentifierHelper();  },
-            'helper.exit'       => function(self $c) { return new ExitHelper($c['helper.identifier']); },
-            'helper.signal'     => function(){ return new SignalHelper(); },
-            'output'            => function(){ return new Output(); },
+            'helper.identifier' => function() {
+                    return new IdentifierHelper();
+                },
+            'helper.exit'       => function(self $c) {
+                    return new ExitHelper($c['helper.identifier']);
+                },
+            'helper.signal'     => function(){
+                    return new SignalHelper();
+                },
+            'output'            => function(){
+                    return new Output();
+                },
+            'semaphore'         => parent::getFactory()->service(function(self $c){
+                    return new SemaphoreService($c['sem.conf.token'], $c['sem.conf.workers'], 0660, false);
+                }),
+            'messages'         => parent::getFactory()->service(function(self $c){
+                    return new MessagesService($c['mess.conf.token'], 0600);
+                }),
         );
     }
 
