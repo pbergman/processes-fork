@@ -156,3 +156,10 @@ same you had set for msgmnb (128000000)
             ->run();
 
 ```
+
+###Examples
+
+got 2 examples in the examples folder both te same only deference is that one works with 1 worker (lorem_1_worker.php)
+and the other with 10 workers (lorem_10_worker.php). This is to see illustrate the time deference between 1 or 10 processes
+
+
