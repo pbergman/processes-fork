@@ -180,7 +180,9 @@ class Service implements \ArrayAccess, \Countable
      */
     public function __get($id)
     {
-        if (property_exists($this, $id) && next(debug_backtrace())['class'] == __NAMESPACE__ . '\Factory') {
+        $trace = debug_backtrace();
+
+        if (property_exists($this, $id) && next($trace)['class'] == __NAMESPACE__ . '\Factory') {
             return $this->$id;
         } else {
             $trace = debug_backtrace();
@@ -197,7 +199,9 @@ class Service implements \ArrayAccess, \Countable
      */
     public function __set($id, $value)
     {
-        if (property_exists($this, $id) && next(debug_backtrace())['class'] == __NAMESPACE__ . '\Factory') {
+        $trace = debug_backtrace();
+
+        if (property_exists($this, $id) && next($trace)['class'] == __NAMESPACE__ . '\Factory') {
             $this->$name = $value;
         }
     }
