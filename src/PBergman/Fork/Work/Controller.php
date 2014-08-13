@@ -19,25 +19,21 @@ use PBergman\SystemV\IPC\Semaphore\Service as Semaphore;
  */
 class Controller
 {
-    /** @var Sender  */
-    private $sender;
     /** @var int  */
     private $start;
-    /** @var Semaphore */
-    private $semaphore;
+    /** @var bool */
+    private $isQuiet;
+    /** @var Container|\PBergman\Fork\Output\Output[]|\PBergman\Fork\Helper\IdentifierHelper[]|\PBergman\Fork\Helper\ExitHelper[]|\PBergman\SystemV\IPC\Semaphore\Service[] */
+    private $container;
 
     /**
-     * @param Sender      $sender
      * @param Container   $container
-     * @param Semaphore   $semaphore
      */
-    public function __construct(Sender $sender, Container $container,Semaphore $semaphore)
+    public function __construct(Container $container)
     {
         // For debugging set start time
         $this->start     = (int) microtime(true);
-        $this->sender    = $sender;
         $this->container = $container;
-        $this->semaphore = $semaphore;
     }
 
     /**
@@ -47,17 +43,9 @@ class Controller
      */
     public function run(AbstractWork &$object)
     {
-        /** @var \PBergman\Fork\Output\OutputInterface $output */
-        $output = $this->container['output'];
+        $this->write('Starting: %s', array($object->getName()));
 
-        $output->write((new LogFormatter(LogFormatter::PROCESS_CHILD))->format(sprintf('Starting: %s', $object->getName())));
-
-        // Set pids
-        $object->setPid($this->container['helper.identifier']->getPid());
-
-        // Setup exit function and check timeout
-        $this->setupExit($object)
-             ->checkTimeOut($object);
+        $this->preRun($object);
 
         // Try execute child process
         try {
@@ -79,66 +67,27 @@ class Controller
         }
     }
 
+
+
     /**
-     * will setup some on exit function for this process
+     * some pre-run calls before executing worker
      *
-     * @param   AbstractWork  $object
-     *
-     * @return  $this
+     * @param   AbstractWork $object
      */
-    protected function setupExit(AbstractWork $object)
+    protected function preRun(AbstractWork &$object)
     {
-
-        $sender     = $this->sender;
-        $start      = $this->start;
-        /** @var \PBergman\Fork\Output\Output $output */
-        $output     = $this->container['output'];
-        /** @var \PBergman\Fork\Helper\ExitHelper $exitHelper */
-        $exitHelper = $this->container['helper.exit'];
-
-        $exitHelper->clear()->register(function()  use ($object, $sender, $start, $output) {
-
-            // Handling fatal errors and save object back to message queue
-            if (false !== $error = ErrorHandler::hasError(E_ERROR | E_USER_ERROR, true)) {
-                $object->setSuccess(false)
-                    ->setExitCode(255)
-                    ->setDuration((microtime(true) - $start))
-                    ->setPid(posix_getpid())
-                    ->setUsage(memory_get_usage())
-                    ->setError(sprintf("Fatal error: %s on line %s in file %s", $error['message'], $error['line'], $error['file']));
-            }
-
-
-            $send = $sender->setData($object)
-                           ->setType(posix_getpid())
-                           ->push();
-
-            if (false === $send->isSuccess()) {
-                trigger_error(sprintf('Failed to send message, %s(%s)', $sender->getError(), $sender->getErrorCode()), E_USER_ERROR);
-
-            }
-
-            // Print some debugging when finished
-            $output->write((new LogFormatter(LogFormatter::PROCESS_CHILD))->format(
-                sprintf('Finished: %s (%s MB/%s s)',
-                    $object->getName(),
-                    round($object->getUsage() /  1024 / 1024, 2),
-                    round($object->getDuration(), 2)
-                )
-            ));
-
-            // Release semaphore for queue
-            $this->semaphore->release();
-        });
-
-        return $this;
+        $object->setPid($this->container['helper.identifier']->getPid());
+        $this->isQuiet = $object->isQuiet();
+        $this->checkTimeOut($object);
+        $this->setExit($object);
     }
 
     /**
-     * will setup timeout
+     * will check if timeout is set, if
+     * so will set alarm for timeout
      *
      * @param AbstractWork $object
-     * @return $this
+     * @return \PBergman\Fork\Work\Controller
      */
     protected function checkTimeOut(AbstractWork &$object)
     {
@@ -151,6 +100,61 @@ class Controller
                 trigger_error($message, E_USER_ERROR);
             });
 
+        }
+
+        return $this;
+    }
+
+    /**
+     * set some exit functions that are going to be
+     * called when work is finished just before exit
+     *
+     * @param AbstractWork $object
+     */
+    protected function setExit(AbstractWork &$object)
+    {
+        $this->container['helper.exit']->clear()->register(function()  use ($object) {
+
+            // Handling fatal errors and save object back to message queue
+            if (false !== $error = ErrorHandler::hasError(E_ERROR | E_USER_ERROR, true)) {
+                $object->setSuccess(false)
+                    ->setExitCode(255)
+                    ->setDuration((microtime(true) - $this->start))
+                    ->setPid(posix_getpid())
+                    ->setUsage(memory_get_usage())
+                    ->setError(sprintf("Fatal error: %s on line %s in file %s", $error['message'], $error['line'], $error['file']));
+            }
+
+            /** @var \PBergman\SystemV\IPC\Messages\Sender $sender */
+            $sender = $this->container['queue.sender'];
+            $sender->setData($object)
+                   ->setType(posix_getpid())
+                   ->push();
+
+            if (false === $sender->isSuccess()) {
+                trigger_error(sprintf('Failed to send message, %s(%s)', $sender->getError(), $sender->getErrorCode()), E_USER_ERROR);
+
+            }
+
+            // Print some debugging when finished
+            $this->write('Finished: %s (%s MB/%s s)', array($object->getName(), round($object->getUsage() /  1024 / 1024, 2), round($object->getDuration(), 2)));
+
+            // Release semaphore for queue
+            $this->container['instance.semaphore']->release();
+        });
+    }
+
+    /**
+     * helper to print some debugging
+     *
+     * @param   $string
+     * @param   array $args
+     * @return  \PBergman\Fork\Work\Controller
+     */
+    protected function write($string, array $args = array())
+    {
+        if (false !== $this->isQuiet) {
+            $this->container['output']->write((new LogFormatter(LogFormatter::PROCESS_CHILD))->format(vsprintf($string, $args)));
         }
 
         return $this;

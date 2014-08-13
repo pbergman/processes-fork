@@ -65,7 +65,7 @@ class Receiver
 
     /**
      * @param   mixed $data
-     * @return  $this
+     * @return  \PBergman\SystemV\IPC\Messages\Receiver
      */
     public function setData($data)
     {
@@ -92,7 +92,7 @@ class Receiver
 
     /**
      * @param   int $flags
-     * @return  $this
+     * @return  \PBergman\SystemV\IPC\Messages\Receiver
      */
     public function setFlags($flags)
     {
@@ -110,7 +110,7 @@ class Receiver
 
     /**
      * @param   int $maxSize
-     * @return  $this
+     * @return  \PBergman\SystemV\IPC\Messages\Receiver
      */
     public function setMaxSize($maxSize)
     {
@@ -136,7 +136,7 @@ class Receiver
 
     /**
      * @param   int $type
-     * @return  $this
+     * @return  \PBergman\SystemV\IPC\Messages\Receiver
      */
     public function setType($type)
     {
@@ -154,7 +154,7 @@ class Receiver
 
     /**
      * @param   boolean $unserialize
-     * @return  $this
+     * @return  \PBergman\SystemV\IPC\Messages\Receiver
      */
     public function setUnserialize($unserialize)
     {

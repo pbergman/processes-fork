@@ -22,8 +22,8 @@ interface OutputInterface
 
     /**
      * will sets stream, for example fopen('php://stdout', 'w')
-     * @param  resource $stream
-     * @return $this;
+     * @param   resource $stream
+     * @return  \PBergman\Fork\Output\OutputInterface;
      */
     public function setStream($stream);
 
@@ -40,13 +40,13 @@ interface OutputInterface
     /**
      * will return buffer helper or null if none defined
      *
-     * @return null|OutputBuffer
+     * @return null|\PBergman\Fork\Output\OutputInterface;
      */
     public function getBuffer();
 
     /**
      * @param   bool    $verbose
-     * @return  $this
+     * @return  \PBergman\Fork\Output\OutputInterface;
      */
     public function setVerbose($verbose);
 

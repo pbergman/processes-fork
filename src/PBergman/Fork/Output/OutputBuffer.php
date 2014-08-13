@@ -33,8 +33,8 @@ class OutputBuffer
     /**
      * add line to buffer
      *
-     * @param string $message
-     * @return $this;
+     * @param   string $message
+     * @return \PBergman\Fork\Output\OutputBuffer;
      */
     public function add($message)
     {
@@ -67,8 +67,8 @@ class OutputBuffer
     }
 
     /**
-     * @param string $bufferDelimiter
-     * @return $this;
+     * @param   string $bufferDelimiter
+     * @return  \PBergman\Fork\Output\OutputBuffer;
      */
     public function setBufferDelimiter($bufferDelimiter)
     {
@@ -85,8 +85,8 @@ class OutputBuffer
     }
 
     /**
-     * @param \PBergman\Fork\Output\FormatInterface $formatter
-     * @return $this;
+     * @param   \PBergman\Fork\Output\FormatInterface $formatter
+     * @return  \PBergman\Fork\Output\OutputBuffer;
      */
     public function setFormatter(FormatInterface $formatter)
     {

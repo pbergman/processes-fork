@@ -21,12 +21,18 @@ use PBergman\Fork\Output\Output;
  */
 class Container extends BaseContainer
 {
+    /**
+     * @magic __construct
+     */
     function __construct()
     {
         parent::__construct();
         parent::addArray($this->getDependencies());
     }
 
+    /**
+     * @return array
+     */
     protected function getDependencies()
     {
         return array(

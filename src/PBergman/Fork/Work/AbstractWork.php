@@ -33,6 +33,8 @@ abstract class AbstractWork
     protected $result;
     /** @var  int */
     protected $timeout;
+    /** @var bool */
+    protected $quiet = false;
 
     /**
      * the main method that is called
@@ -53,7 +55,7 @@ abstract class AbstractWork
      * set execution duration of script
      *
      * @param  int   $duration
-     * @return $this
+     * @return \PBergman\Fork\Work\AbstractWork
      */
     public function setDuration($duration)
     {
@@ -65,7 +67,7 @@ abstract class AbstractWork
     /**
      * returns duration from script
      *
-     * @return int
+     * @return \PBergman\Fork\Work\AbstractWork
      */
     public function getDuration()
     {
@@ -87,7 +89,7 @@ abstract class AbstractWork
      * set parent pid from process
      *
      * @param   int  $pid
-     * @return  $this
+     * @return  \PBergman\Fork\Work\AbstractWork
      * @throws  WorkException
      */
     public function setParentPid($pid)
@@ -115,7 +117,7 @@ abstract class AbstractWork
      * set pid from process
      *
      * @param   int  $pid
-     * @return  $this
+     * @return  \PBergman\Fork\Work\AbstractWork
      * @throws  WorkException
      */
     public function setPid($pid)
@@ -137,7 +139,7 @@ abstract class AbstractWork
      * will set true is script was run without errors
      *
      * @param  bool $success
-     * @return $this
+     * @return \PBergman\Fork\Work\AbstractWork
      */
     public function setSuccess($success)
     {
@@ -150,7 +152,7 @@ abstract class AbstractWork
      * set exceptions catch from running execute
      *
      * @param   string $error
-     * @return  $this
+     * @return  \PBergman\Fork\Work\AbstractWork
      */
     public function setError($error)
     {
@@ -180,7 +182,7 @@ abstract class AbstractWork
 
     /**
      * @param   $result
-     * @return  $this|mixed
+     * @return  \PBergman\Fork\Work\AbstractWork|mixed
      */
     public function setResult($result)
     {
@@ -201,7 +203,7 @@ abstract class AbstractWork
      * sets exit code from script
      *
      * @param  int $exitCode
-     * @return $this
+     * @return \PBergman\Fork\Work\AbstractWork
      */
     public function setExitCode($exitCode)
     {
@@ -214,7 +216,7 @@ abstract class AbstractWork
      * sets memory usage of script
      *
      * @param  int $usage
-     * @return $this
+     * @return \PBergman\Fork\Work\AbstractWork
      */
     public function setUsage($usage)
     {
@@ -245,7 +247,7 @@ abstract class AbstractWork
      * set timeout of running script in seconds
      *
      * @param   int $timeout
-     * @return  $this
+     * @return  \PBergman\Fork\Work\AbstractWork
      */
     public function setTimeout($timeout)
     {
@@ -254,5 +256,21 @@ abstract class AbstractWork
         }
 
         return $this;
+    }
+
+    /**
+     * @return boolean
+     */
+    public function isQuiet()
+    {
+        return $this->quiet;
+    }
+
+    /**
+     * @param boolean $quiet
+     */
+    public function setQuiet($quiet)
+    {
+        $this->quiet = $quiet;
     }
 }

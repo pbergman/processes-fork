@@ -15,7 +15,7 @@ use PBergman\Fork\Output\LogFormatter;
 /**
  * Class Manager
  *
- * @package PBergman\ForkManager
+ * @package PBergman\Fork
  */
 class ForkManager
 {
@@ -29,7 +29,7 @@ class ForkManager
     private $maxSize = 16384;
     /** @var array  */
     private $pids = array();
-    /** @var Container */
+    /** @var  Container|\PBergman\Fork\Helper\IdentifierHelper[]|\PBergman\Fork\Helper\ExitHelper[]|\PBergman\Fork\Helper\SignalHelper[]|\PBergman\SystemV\IPC\Messages\Service[]|\PBergman\SystemV\IPC\Semaphore\Service[] */
     private $container;
     /** @var  callable */
     private $postForkChild;
@@ -63,13 +63,7 @@ class ForkManager
      */
     protected function initialize()
     {
-        /**
-         * register exit handler
-         *
-         * @var \PBergman\Fork\Helper\ExitHelper $exit
-         */
-        $exit = $this->container['helper.exit'];
-        $exit->register(function(){
+        $this->container['helper.exit']->register(function(){
             // Make sure children die on (error) exit and cleanup
             if (ErrorHandler::hasError(E_ERROR | E_USER_ERROR)) {
                 $this->killChildren();
@@ -79,11 +73,8 @@ class ForkManager
 
         /**
          * Setup signal handler && Trap Ctrl-C && Ctrl-/
-         *
-         * @var \PBergman\Fork\Helper\SignalHelper $signal
          */
-        $signal = $this->container['helper.signal'];
-        $signal->register(array(SIGINT, SIGQUIT), function($signal) {
+        $this->container['helper.signal']->register(array(SIGINT, SIGQUIT), function($signal) {
             if($this->container['helper.identifier']->isParent()) {
                 $this->killChildren();
                 exit($signal);
@@ -99,7 +90,7 @@ class ForkManager
      * main method that spawns children
      * end divides the work with workers
      *
-     * @return $this
+     * @return \PBergman\Fork\ForkManager
      * @throws \Exception
      */
     public function run()
@@ -133,8 +124,13 @@ class ForkManager
                     break;
                 case 0:     // @child
                     $this->jobs  = null;
+
+                    $this->container['instance.semaphore'] = $semaphore;
+                    $this->container['queue.sender']       = $queue->getSender();
+
                     $this->checkPostForkCallback();
-                    $controller  = new Controller($queue->getSender(), $this->container, $semaphore);
+
+                    $controller  = new Controller($this->container);
                     $controller->run($work);
                     break;
                 default:    // @parent
@@ -243,7 +239,7 @@ class ForkManager
      * set amount of workers to precess jobs
      *
      * @param   int $workers
-     * @return  $this
+     * @return  \PBergman\Fork\ForkManager
      */
     public function setWorkers($workers)
     {
@@ -265,7 +261,7 @@ class ForkManager
      * set all jobs at once
      *
      * @param   array $jobs
-     * @return  $this
+     * @return  \PBergman\Fork\ForkManager
      */
     public function setJobs(array $jobs)
     {
@@ -282,7 +278,7 @@ class ForkManager
      * add job to stack
      *
      * @param   AbstractWork $job
-     * @return  $this
+     * @return  \PBergman\Fork\ForkManager
      */
     public function addJob(AbstractWork $job)
     {
@@ -300,7 +296,7 @@ class ForkManager
 
     /**
      * @param   int     $maxSize
-     * @return  $this;
+     * @return  \PBergman\Fork\ForkManager;
      */
     public function setMaxSize($maxSize)
     {
@@ -326,7 +322,7 @@ class ForkManager
 
     /***
      * cleanup for removing resources
-     * @return $this
+     * @return \PBergman\Fork\ForkManager
      */
     public function cleanup()
     {
@@ -341,7 +337,7 @@ class ForkManager
      * creation of child in child process
      *
      * @param   callable $postFork
-     * @return  $this
+     * @return  \PBergman\Fork\ForkManager
      */
     public function setPostForkParent(callable $postFork)
     {
@@ -354,7 +350,7 @@ class ForkManager
      * creation of child in parent process
      *
      * @param   callable $postFork
-     * @return  $this
+     * @return  \PBergman\Fork\ForkManager
      */
     public function setPostForkChild(callable $postFork)
     {
@@ -372,7 +368,7 @@ class ForkManager
 
     /**
      * @param   Container $container
-     * @return  $this
+     * @return  \PBergman\Fork\ForkManager
      */
     public function setContainer(Container $container)
     {

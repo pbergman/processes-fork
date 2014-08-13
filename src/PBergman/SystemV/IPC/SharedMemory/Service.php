@@ -244,7 +244,7 @@ class Service
 
     /**
      * @param   \PBergman\SystemV\IPC\Semaphore\Service $sem
-     * @return  $this;
+     * @return  \PBergman\SystemV\IPC\Semaphore\Service;
      */
     public function setSem(SemaphoreService $sem)
     {

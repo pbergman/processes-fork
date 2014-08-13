@@ -16,7 +16,7 @@ namespace PBergman\Fork\Helper;
  * that registered it, this is done by setting the
  * pid from process to the info of the SplObjectStorage
  *
- * @package PBergman\Fork
+ * @package PBergman\Fork\Helper
  */
 class ExitHelper
 {
@@ -68,7 +68,7 @@ class ExitHelper
      * @param   bool      $global       if set to true will execute callback to all child/parent
      *                                  process and wont de detached after it was called
      *
-     * @return  $this
+     * @return  \PBergman\Fork\Helper\ExitHelper
      */
     public function register(callable $callback, $global = false)
     {
@@ -81,7 +81,7 @@ class ExitHelper
      * Remove all registered exit callbacks
      * that are not bound to this process
      *
-     * @return $this;
+     * @return \PBergman\Fork\Helper\ExitHelper;
      */
     public function clear()
     {
@@ -103,7 +103,7 @@ class ExitHelper
     /**
      * clear all callback from storage
      *
-     * @return $this;
+     * @return \PBergman\Fork\Helper\ExitHelper;
      */
     public function clearAll()
     {

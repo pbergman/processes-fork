@@ -46,7 +46,7 @@ class Sender
     }
 
     /**
-     * @return $this
+     * @return \PBergman\SystemV\IPC\Messages\Sender
      */
     public function push()
     {
@@ -69,7 +69,7 @@ class Sender
 
     /**
      * @param   int     $type
-     * @return  $this
+     * @return  \PBergman\SystemV\IPC\Messages\Sender
      */
     public function setType($type)
     {
@@ -87,7 +87,7 @@ class Sender
 
     /**
      * @param   mixed   $data
-     * @return  $this
+     * @return  \PBergman\SystemV\IPC\Messages\Sender
      */
     public function setData($data)
     {
@@ -105,7 +105,7 @@ class Sender
 
     /**
      * @param   boolean $serialize
-     * @return  $this
+     * @return  \PBergman\SystemV\IPC\Messages\Sender
      */
     public function setSerialize($serialize)
     {
@@ -123,7 +123,7 @@ class Sender
 
     /**
      * @param   boolean $blocking
-     * @return  $this
+     * @return  \PBergman\SystemV\IPC\Messages\Sender
      */
     public function setBlocking($blocking)
     {

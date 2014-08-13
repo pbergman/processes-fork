@@ -23,7 +23,7 @@ class SignalHelper
      *
      * @param   int       $signal
      * @param   callable  $callback
-     * @return  $this
+     * @return  \PBergman\Fork\Helper\SignalHelper
      */
 
     public function register($signal, callable $callback)

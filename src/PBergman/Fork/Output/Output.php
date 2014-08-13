@@ -59,7 +59,7 @@ class Output implements OutputInterface
      *
      * @param   resource $stream
      * @throws  \InvalidArgumentException
-     * @return  $this;
+     * @return  \PBergman\Fork\Output\Output;
      */
     public function setStream($stream)
     {
@@ -91,7 +91,7 @@ class Output implements OutputInterface
 
     /**
      * @param   bool    $verbose
-     * @return  $this
+     * @return  \PBergman\Fork\Output\Output
      */
     public function setVerbose($verbose)
     {
