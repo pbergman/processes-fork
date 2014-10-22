@@ -35,6 +35,8 @@ class ForkManager
     private $postForkChild;
     /** @var  callable */
     private $postForkParent;
+    /** @var int retries befor trigger error when reading message queue */
+    private $receiveRetries = 4;
     /**
      * @param Container  $container
      * @param string     $file       files used to generate tokens
@@ -182,36 +184,38 @@ class ForkManager
      */
     private function sync(Receiver $receiver)
     {
-        // Make extra loop so we pick up children
         // finished closely after each other
-        for($i = 0 ; $i < array_sum($this->pids); $i++) {
-            foreach($this->pids as $pid => &$isRunning) {
-                if ($isRunning === 1) {
-                    if (pcntl_waitpid($pid, $status, WNOHANG | WUNTRACED)) {
+        foreach($this->pids as $pid => &$isRunning) {
+            if ($isRunning > 0) {
+                if (pcntl_waitpid($pid, $status, WNOHANG | WUNTRACED)) {
 
-                        $received = $receiver->setType($pid)
-                                             ->setMaxSize($this->maxSize)
-                                             ->pull();
+                    $received = $receiver->setType($pid)
+                                         ->setMaxSize($this->maxSize)
+                                         ->pull();
 
-                        if (false === $received->isSuccess()) {
-                            trigger_error(sprintf('Failed to receive message, %s(%s)', $receiver->getError(), $receiver->getErrorCode()), E_USER_ERROR);
+                    if (false === $received->isSuccess()) {
+
+                        if ($isRunning >= $this->receiveRetries) {
+                            trigger_error(sprintf('Failed to receive message after %s retries, %s(%s)', $isRunning, $receiver->getError(), $receiver->getErrorCode()), E_USER_ERROR);
+                        } else {
+                            $isRunning++;
                         }
-
+                    } else {
                         /** @var AbstractWork $object */
                         $object = $received->getData();
 
                         if (pcntl_wifstopped($status)) {
 
                             $object->setExitCode(null)
-                                   ->setError(sprintf('Signal: %s caused this child to stop.',  pcntl_wstopsig($status)))
-                                   ->isSuccess(false);
+                                ->setError(sprintf('Signal: %s caused this child to stop.',  pcntl_wstopsig($status)))
+                                ->isSuccess(false);
 
                         } elseif(pcntl_wifsignaled($status)) {
 
 
                             $object->setExitCode(pcntl_wexitstatus($status))
-                                   ->setError(sprintf('Signal: %s caused this child to exit', pcntl_wtermsig($status)))
-                                   ->isSuccess(false);
+                                ->setError(sprintf('Signal: %s caused this child to exit', pcntl_wtermsig($status)))
+                                ->isSuccess(false);
 
                         } else {
                             $object->setExitCode(pcntl_wexitstatus($status));
@@ -220,6 +224,7 @@ class ForkManager
                         $this->finishedJobs[$object->getPid()] = $object;
                         $isRunning = 0;
                     }
+
                 }
             }
         }
