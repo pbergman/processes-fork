@@ -177,7 +177,7 @@ class ForkManager
     protected function getMessageQueue()
     {
         $token = $this->createId();
-        $file  = printf('/tmp/%s', $token);
+        $file  = sprintf('/tmp/%s', $token);
         file_put_contents($file, null);
         $this->container['mess.conf.token'] = ftok($file, 'm');
         unlink($file);
