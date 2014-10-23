@@ -178,7 +178,7 @@ class ForkManager
     {
         $token = $this->createId();
         $file  = sprintf('/tmp/%s', $token);
-        file_put_contents($file, null);
+        file_put_contents($file, '');
         $this->container['mess.conf.token'] = ftok($file, 'm');
         unlink($file);
         return $this->container['message_queue'];
@@ -241,15 +241,15 @@ class ForkManager
                             $object->setExitCode(pcntl_wexitstatus($status));
                         }
 
-                        $sender = $this->queues[$pid]
-                            ->getSender()
-                            ->setData($object)
-                            ->setType(ForkManager::SEND_PARENT)
-                            ->push();
-
-                        if (false === $sender->isSuccess()) {
-                            trigger_error(sprintf('Failed to send message, %s(%s)', $sender->getError(), $sender->getErrorCode()), E_USER_ERROR);
-                        }
+//                        $sender = $this->queues[$pid]
+//                            ->getSender()
+//                            ->setData($object)
+//                            ->setType(ForkManager::SEND_PARENT)
+//                            ->push();
+//
+//                        if (false === $sender->isSuccess()) {
+//                            trigger_error(sprintf('Failed to send message, %s(%s)', $sender->getError(), $sender->getErrorCode()), E_USER_ERROR);
+//                        }
 
                         $this->queues[$pid]->remove();
                         $this->finishedJobs[$object->getPid()] = $object;

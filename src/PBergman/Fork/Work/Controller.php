@@ -123,14 +123,14 @@ class Controller
                 trigger_error(sprintf('Failed to send message, %s(%s)', $sender->getError(), $sender->getErrorCode()), E_USER_ERROR);
             }
 
-            $receiver = $queue->getReceiver()
-                              ->setType(ForkManager::SEND_PARENT)
-                              ->setMaxSize($this->container['fm.max_size'])
-                              ->pull();
-
-            if (false === $receiver->isSuccess()) {
-                trigger_error(sprintf('Failed to receive message, %s(%s)', $receiver->getError(), $receiver->getErrorCode()), E_USER_ERROR);
-            }
+//            $receiver = $queue->getReceiver()
+//                              ->setType(ForkManager::SEND_PARENT)
+//                              ->setMaxSize($this->container['fm.max_size'])
+//                              ->pull();
+//
+//            if (false === $receiver->isSuccess()) {
+//                trigger_error(sprintf('Failed to receive message, %s(%s)', $receiver->getError(), $receiver->getErrorCode()), E_USER_ERROR);
+//            }
 
             // Print some debugging when finished
             $this->write('Finished: %s (%s MB/%s s)', array($object->getName(), round($object->getUsage() /  1024 / 1024, 2), round($object->getDuration(), 2)), !$object->isQuiet());
