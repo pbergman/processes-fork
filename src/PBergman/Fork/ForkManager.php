@@ -37,6 +37,14 @@ class ForkManager
     private $postForkParent;
     /** @var int retries befor trigger error when reading message queue */
     private $receiveRetries = 4;
+
+    // Some const for remove method
+    const CLEAR_SEMAPHORE       = 1;
+    const CLEAR_MESSAGE_QUEUE   = 2;
+    const CLEAR_JOBS            = 4;
+    const CLEAR_FINISHED_JOBS   = 8;
+    const CLEAR_ALL             = 15;
+
     /**
      * @param Container  $container
      * @param string     $file       files used to generate tokens
@@ -70,7 +78,7 @@ class ForkManager
             if (ErrorHandler::hasError(E_ERROR | E_USER_ERROR)) {
                 $this->killChildren();
             }
-            $this->cleanup();
+            $this->cleanup(self::CLEAR_ALL);
         });
 
         /**
@@ -327,13 +335,29 @@ class ForkManager
 
     /***
      * cleanup for removing resources
+     *
+     * @param int $level set level for removing
+     *
      * @return \PBergman\Fork\ForkManager
      */
-    public function cleanup()
+    public function cleanup($level = self::CLEAR_JOBS)
     {
-        $this->container['semaphore']->remove();
-        $this->container['messages']->remove();
-        $this->jobs->removeAll($this->jobs);
+        if ($option = ($level & self::CLEAR_SEMAPHORE)) {
+            $this->container['semaphore']->remove();
+        }
+
+        if ($option = ($level & self::CLEAR_MESSAGE_QUEUE)) {
+            $this->container['messages']->remove();
+        }
+
+        if ($option = ($level & self::CLEAR_JOBS)) {
+            $this->jobs->removeAll($this->jobs);
+        }
+
+        if ($option = ($level & self::CLEAR_FINISHED_JOBS)) {
+            unset($this->finishedJobs);
+        }
+
         return $this;
     }
 
