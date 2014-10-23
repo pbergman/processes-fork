@@ -181,7 +181,7 @@ class ForkManager
         file_put_contents($file, null);
         $this->container['mess.conf.token'] = ftok($file, 'm');
         unlink($file);
-        return $this->container['messages'];
+        return $this->container['message_queue'];
     }
 
     /**
@@ -369,9 +369,9 @@ class ForkManager
             $this->container['semaphore']->remove();
         }
 
-        if ($option = ($level & self::CLEAR_MESSAGE_QUEUE)) {
-            $this->container['messages']->remove();
-        }
+//        if ($option = ($level & self::CLEAR_MESSAGE_QUEUE)) {
+//            $this->container['message_queue']->remove();
+//        }
 
         if ($option = ($level & self::CLEAR_JOBS)) {
             $this->jobs->removeAll($this->jobs);
