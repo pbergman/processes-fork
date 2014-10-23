@@ -51,7 +51,7 @@ class Container extends BaseContainer
             'semaphore'         => parent::getFactory()->service(function(self $c){
                     return new SemaphoreService($c['sem.conf.token'], $c['sem.conf.workers'], 0660, false);
                 }),
-            'messages'         => parent::getFactory()->service(function(self $c){
+            'message_queue'     => parent::getFactory()->service(function(self $c){
                     return new MessagesService($c['mess.conf.token'], 0600);
                 }),
         );
