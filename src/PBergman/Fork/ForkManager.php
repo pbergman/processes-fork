@@ -121,10 +121,10 @@ class ForkManager
             /** @var AbstractWork $work */
             $work = $this->jobs->current();
             $work->setParentPid($identifier->getParentPid());
-            /** Check for finished children */
-            $this->sync();
             /** Acquire semaphore lock */
             $semaphore->acquire();
+            /** Check for finished children */
+            $this->sync();
             /** @var \PBergman\SystemV\IPC\Messages\Service $messageQueue */
             $messageQueue = $this->getMessageQueue();
             /** @var int $pid */
