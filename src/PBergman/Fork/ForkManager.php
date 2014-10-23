@@ -11,6 +11,8 @@ use PBergman\Fork\Work\AbstractWork;
 use PBergman\Fork\Work\Controller;
 use PBergman\Fork\Output\OutputInterface;
 use PBergman\Fork\Output\LogFormatter;
+use PBergman\SystemV\IPC\Messages\Service  as MessagesService;
+
 
 /**
  * Class Manager
@@ -125,7 +127,7 @@ class ForkManager
             $semaphore->acquire();
             /** Check for finished children */
             $this->sync();
-            /** @var \PBergman\SystemV\IPC\Messages\Service $messageQueue */
+            /** @var \PBergman\SystemV\IPC\Messages\Service[] $messageQueue */
             $messageQueue = $this->getMessageQueue();
             /** @var int $pid */
             $pid = pcntl_fork();
@@ -135,17 +137,19 @@ class ForkManager
                     throw new \Exception('Could not fork process');
                     break;
                 case 0:     // @child
+                    unset($messageQueue[1]);
                     $this->jobs  = null;
                     $this->container['instance.semaphore']     = $semaphore;
-                    $this->container['instance.message_queue'] = $messageQueue;
+                    $this->container['instance.message_queue'] = $messageQueue[1];
                     $this->checkPostForkCallback();
                     $controller  = new Controller($this->container);
                     $controller->run($work);
                     break;
                 default:    // @parent
+                    unset($messageQueue[1]);
                     $this->checkPostForkCallback();
                     $this->pids[$pid]   = 1;
-                    $this->queues[$pid] = $messageQueue;
+                    $this->queues[$pid] = $messageQueue[0];
             }
 
             $this->jobs->next();
@@ -176,12 +180,28 @@ class ForkManager
      */
     protected function getMessageQueue()
     {
-        $token = $this->createId();
-        $file  = sprintf('/tmp/%s', $token);
+        $token  = $this->createId();
+        $file   = sprintf('/tmp/%s', $token);
         file_put_contents($file, '');
-        $this->container['mess.conf.token'] = ftok($file, 'm');
-        unlink($file);
-        return $this->container['message_queue'];
+        $ftoken = ftok($file, 'm');
+
+        $this->container['output']
+            ->write(
+                (new LogFormatter(LogFormatter::PROCESS_PARENT))
+                    ->format(
+                        sprintf('Token: %s for file: %s', $ftoken, $file)
+                    ));
+
+
+        $queues = array(
+            new MessagesService($ftoken, 0600),
+            new MessagesService($ftoken, 0600),
+        );
+
+        //$this->container['mess.conf.token'] = ftok($file, 'm');
+        //unlink($file);
+
+        return $queues;//$this->container['message_queue'];
     }
 
     /**
