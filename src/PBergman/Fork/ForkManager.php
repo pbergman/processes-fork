@@ -123,10 +123,10 @@ class ForkManager
             /** @var AbstractWork $work */
             $work = $this->jobs->current();
             $work->setParentPid($identifier->getParentPid());
-            /** Acquire semaphore lock */
-            $semaphore->acquire();
             /** Check for finished children */
             $this->sync();
+            /** Acquire semaphore lock */
+            $semaphore->acquire();
             /** @var \PBergman\SystemV\IPC\Messages\Service[] $messageQueue */
             $messageQueue = $this->getMessageQueue();
             /** @var int $pid */
@@ -137,7 +137,8 @@ class ForkManager
                     throw new \Exception('Could not fork process');
                     break;
                 case 0:     // @child
-                    unset($messageQueue[1]);
+//                    unset($messageQueue[1]);
+
                     $this->jobs  = null;
                     $this->container['instance.semaphore']     = $semaphore;
                     $this->container['instance.message_queue'] = $messageQueue[1];
@@ -146,7 +147,7 @@ class ForkManager
                     $controller->run($work);
                     break;
                 default:    // @parent
-                    unset($messageQueue[1]);
+//                    unset($messageQueue[1]);
                     $this->checkPostForkCallback();
                     $this->pids[$pid]   = 1;
                     $this->queues[$pid] = $messageQueue[0];
@@ -160,6 +161,7 @@ class ForkManager
 
             // Wait for children.....
             while(array_sum($this->pids) >= 1) {
+                var_dump($this->pids);
                 $this->sync();
             }
 
@@ -180,26 +182,36 @@ class ForkManager
      */
     protected function getMessageQueue()
     {
-        $token  = $this->createId();
-        $file   = sprintf('/tmp/%s', $token);
-        file_put_contents($file, '');
-        $ftoken = ftok($file, 'm');
 
-        $this->container['output']
-            ->write(
-                (new LogFormatter(LogFormatter::PROCESS_PARENT))
-                    ->format(
-                        sprintf('Token: %s for file: %s', $ftoken, $file)
-                    ));
+//        $filename = $this->createId();
+//        for($key = array(); sizeof($key) < strlen($filename); $key[] = ord(substr($filename, sizeof($key), 1)));
+//
+//        $token= array_sum($key);
+
+//        $token  = $this->createId();
+////        $file   = sprintf('/tmp/stack', $token);
+//        file_put_contents('/tmp/stack', $token);
+//        $ftoken = ftok('/tmp/stack', 'm');
+//var_dump(is_file($file), $ftoken, $token, ftok('/tmp/stack', 'a'), ftok('/tmp/stack', 'a'));
+
+//        $this->container['output']
+//            ->write(
+//                (new LogFormatter(LogFormatter::PROCESS_PARENT))
+//                    ->format(
+//                        sprintf('Token: %s for file: %s', $ftoken, $file)
+//                    ));
+//
+
+//        $this->container['mess.conf.token'] = ftok($file, 'm');
 
 
         $queues = array(
-            new MessagesService($ftoken, 0600),
-            new MessagesService($ftoken, 0600),
+            new MessagesService($token, 600),
+            new MessagesService($token, 600),
         );
 
         //$this->container['mess.conf.token'] = ftok($file, 'm');
-        //unlink($file);
+//        unlink($file);
 
         return $queues;//$this->container['message_queue'];
     }
@@ -271,7 +283,7 @@ class ForkManager
 //                            trigger_error(sprintf('Failed to send message, %s(%s)', $sender->getError(), $sender->getErrorCode()), E_USER_ERROR);
 //                        }
 
-                        $this->queues[$pid]->remove();
+//                        $this->queues[$pid]->remove();
                         $this->finishedJobs[$object->getPid()] = $object;
                         $isRunning = 0;
                     }
