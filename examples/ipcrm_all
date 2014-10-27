@@ -1,0 +1,9 @@
+#!/bin/bash
+
+for i in $(ipcs -s| egrep -v 'key|Semaphore' | awk '{print $2}'); do
+    ipcrm -s "$i";
+done
+
+for i in $(ipcs -q| egrep -v 'key|Message' | awk '{print $2}'); do
+    ipcrm -q "$i";
+done

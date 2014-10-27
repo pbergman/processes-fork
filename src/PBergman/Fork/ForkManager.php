@@ -11,7 +11,7 @@ use PBergman\Fork\Work\AbstractWork;
 use PBergman\Fork\Work\Controller;
 use PBergman\Fork\Output\OutputInterface;
 use PBergman\Fork\Output\LogFormatter;
-use PBergman\SystemV\IPC\Messages\Service  as MessagesService;
+use PBergman\SystemV\IPC\Messages\Service as MessagesService;
 
 
 /**
@@ -31,7 +31,7 @@ class ForkManager
     private $maxSize = 16384;
     /** @var array  */
     private $pids = array();
-    /** @var  Container|\PBergman\Fork\Helper\IdentifierHelper[]|\PBergman\Fork\Helper\ExitHelper[]|\PBergman\Fork\Helper\SignalHelper[]|\PBergman\SystemV\IPC\Messages\Service[]|\PBergman\SystemV\IPC\Semaphore\Service[] */
+    /** @var  MessageQueue[]|Container|\PBergman\Fork\Helper\IdentifierHelper[]|\PBergman\Fork\Helper\ExitHelper[]|\PBergman\Fork\Helper\SignalHelper[]|\PBergman\SystemV\IPC\Messages\Service[]|\PBergman\SystemV\IPC\Semaphore\Service[] */
     private $container;
     /** @var  callable */
     private $postForkChild;
@@ -39,12 +39,13 @@ class ForkManager
     private $postForkParent;
     /** @var int retries befor trigger error when reading message queue */
     private $receiveRetries = 4;
-    /** @var array|\PBergman\SystemV\IPC\Messages\Service[] $queues */
+    /** @var array|MessageQueue[] $queues */
     private $queues;
 
     // Some const message queue
     const SEND_CHILD  = 1;
     const SEND_PARENT = 2;
+    const MESSAGE_RECEIVED = 1;
 
     // Some const for remove method
     const CLEAR_SEMAPHORE       = 1;
@@ -100,7 +101,7 @@ class ForkManager
         });
 
         //Enable custom error handler
-        ErrorHandler::enable($this->container['output']);
+        //ErrorHandler::enable($this->container['output']);
 
     }
 
@@ -119,16 +120,21 @@ class ForkManager
         $semaphore  = $this->container['semaphore'];
         /** @var \PBergman\Fork\Helper\IdentifierHelper $identifier */
         $identifier = $this->container['helper.identifier'];
+
         while($this->jobs->valid()) {
             /** @var AbstractWork $work */
             $work = $this->jobs->current();
             $work->setParentPid($identifier->getParentPid());
-            /** Check for finished children */
-            $this->sync();
             /** Acquire semaphore lock */
             $semaphore->acquire();
-            /** @var \PBergman\SystemV\IPC\Messages\Service[] $messageQueue */
-            $messageQueue = $this->getMessageQueue();
+            /** Check for finished children */
+            $this->sync();
+//            /** @var \PBergman\SystemV\IPC\Messages\Service[] $messageQueue */
+//            $messageQueue = $this->getMessageQueue();
+            /** @var MessageQueue $messaging */
+            $messaging = $this
+                ->container['message_queue']
+                ->newInstance();
             /** @var int $pid */
             $pid = pcntl_fork();
 
@@ -137,20 +143,19 @@ class ForkManager
                     throw new \Exception('Could not fork process');
                     break;
                 case 0:     // @child
-//                    unset($messageQueue[1]);
-
+                    //unset($messageQueue[0]);
                     $this->jobs  = null;
-                    $this->container['instance.semaphore']     = $semaphore;
-                    $this->container['instance.message_queue'] = $messageQueue[1];
+                    $this->container['instance.semaphore'] = $semaphore;
+//                    $this->container['instance.messaging'] = $messaging;
                     $this->checkPostForkCallback();
-                    $controller  = new Controller($this->container);
+                    $controller  = new Controller($this->container, $messaging);
                     $controller->run($work);
                     break;
                 default:    // @parent
-//                    unset($messageQueue[1]);
+                    //unset($messageQueue[1]);
                     $this->checkPostForkCallback();
                     $this->pids[$pid]   = 1;
-                    $this->queues[$pid] = $messageQueue[0];
+                    $this->queues[$pid] = $messaging;
             }
 
             $this->jobs->next();
@@ -161,7 +166,6 @@ class ForkManager
 
             // Wait for children.....
             while(array_sum($this->pids) >= 1) {
-                var_dump($this->pids);
                 $this->sync();
             }
 
@@ -182,38 +186,17 @@ class ForkManager
      */
     protected function getMessageQueue()
     {
+        if (!isset($this->container['mess.conf.token'])) {
+            $this->container['mess.conf.token'] = ftok(__FILE__, 'm');
+        } else {
+            $this->container['mess.conf.token'] += 1;
+        }
 
-//        $filename = $this->createId();
-//        for($key = array(); sizeof($key) < strlen($filename); $key[] = ord(substr($filename, sizeof($key), 1)));
-//
-//        $token= array_sum($key);
+        while (MessagesService::exists($this->container['mess.conf.token'])) {
+            $this->container['mess.conf.token'] += 1;
+        }
 
-//        $token  = $this->createId();
-////        $file   = sprintf('/tmp/stack', $token);
-//        file_put_contents('/tmp/stack', $token);
-//        $ftoken = ftok('/tmp/stack', 'm');
-//var_dump(is_file($file), $ftoken, $token, ftok('/tmp/stack', 'a'), ftok('/tmp/stack', 'a'));
-
-//        $this->container['output']
-//            ->write(
-//                (new LogFormatter(LogFormatter::PROCESS_PARENT))
-//                    ->format(
-//                        sprintf('Token: %s for file: %s', $ftoken, $file)
-//                    ));
-//
-
-//        $this->container['mess.conf.token'] = ftok($file, 'm');
-
-
-        $queues = array(
-            new MessagesService($token, 600),
-            new MessagesService($token, 600),
-        );
-
-        //$this->container['mess.conf.token'] = ftok($file, 'm');
-//        unlink($file);
-
-        return $queues;//$this->container['message_queue'];
+        return $this->container['message_queue'];
     }
 
     /**
@@ -241,10 +224,17 @@ class ForkManager
             if ($isRunning > 0) {
                 if (pcntl_waitpid($pid, $status, WNOHANG | WUNTRACED)) {
 
-                    $receiver = $this->queues[$pid]->getReceiver();
-                    $received = $receiver->setType(self::SEND_CHILD)
-                                         ->setMaxSize($this->maxSize)
-                                         ->pull();
+                    $received  = $this->queues[$pid]
+                        ->getMessageQueue()
+                        ->getReceiver()
+                        ->setType(self::SEND_CHILD)
+                        ->setMaxSize($this->maxSize)
+                        ->pull();
+
+//                    $receiver = $this->queues[$pid]->getReceiver();
+//                    $received = $receiver->setType(self::SEND_CHILD)
+//                                         ->setMaxSize($this->maxSize)
+//                                         ->pull();
 
                     if (false === $received->isSuccess()) {
                         if ($isRunning >= $this->receiveRetries) {
@@ -273,17 +263,25 @@ class ForkManager
                             $object->setExitCode(pcntl_wexitstatus($status));
                         }
 
-//                        $sender = $this->queues[$pid]
-//                            ->getSender()
-//                            ->setData($object)
-//                            ->setType(ForkManager::SEND_PARENT)
-//                            ->push();
+//                        $sender = $this->queues[$pid]->getSender();
+//
+//                        var_dump($sender);
+
+//                        $sender->setData(self::MESSAGE_RECEIVED)
+//                                ->setBlocking(false)
+//                                ->setType(self::SEND_PARENT)
+//                                ->push();
 //
 //                        if (false === $sender->isSuccess()) {
 //                            trigger_error(sprintf('Failed to send message, %s(%s)', $sender->getError(), $sender->getErrorCode()), E_USER_ERROR);
+//                        } else {
+//                            echo "Send message \n";
 //                        }
 
+                        /** Remove message queue and stack ref */
 //                        $this->queues[$pid]->remove();
+//                        unset($this->queues[$pid]);
+
                         $this->finishedJobs[$object->getPid()] = $object;
                         $isRunning = 0;
                     }
@@ -401,9 +399,12 @@ class ForkManager
             $this->container['semaphore']->remove();
         }
 
-//        if ($option = ($level & self::CLEAR_MESSAGE_QUEUE)) {
-//            $this->container['message_queue']->remove();
-//        }
+        if ($option = ($level & self::CLEAR_MESSAGE_QUEUE)) {
+            /** @var MessagesService $queue */
+            foreach($this->queues as $queue) {
+                $queue->remove();
+            }
+        }
 
         if ($option = ($level & self::CLEAR_JOBS)) {
             $this->jobs->removeAll($this->jobs);
@@ -458,18 +459,5 @@ class ForkManager
     {
         $this->container = $container;
         return $this;
-    }
-
-    /**
-     * Create a uuid v4
-     *
-     * @return string
-     */
-    protected function createId()
-    {
-        $data    = openssl_random_pseudo_bytes(16);
-        $data[6] = chr(ord($data[6]) & 0x0f | 0x40); // set version to 0100
-        $data[8] = chr(ord($data[8]) & 0x3f | 0x80); // set bits 6-7 to 10
-        return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
     }
 }
