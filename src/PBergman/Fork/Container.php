@@ -9,6 +9,7 @@ namespace PBergman\Fork;
 use PBergman\Container\Service as BaseContainer;
 use PBergman\SystemV\IPC\Semaphore\Service as SemaphoreService;
 use PBergman\SystemV\IPC\Messages\Service  as MessagesService;
+use PBergman\Fork\MessageQueue;
 use PBergman\Fork\Helper\ExitHelper;
 use PBergman\Fork\Helper\IdentifierHelper;
 use PBergman\Fork\Helper\SignalHelper;
@@ -52,8 +53,11 @@ class Container extends BaseContainer
                     return new SemaphoreService($c['sem.conf.token'], $c['sem.conf.workers'], 0660, false);
                 }),
             'message_queue'     => parent::getFactory()->service(function(self $c){
-                    return new MessagesService($c['mess.conf.token'], 0600);
+                    return new MessageQueue($c);
                 }),
+            'messages'     => parent::getFactory()->service(function(self $c){
+                return new MessagesService($c['mess.conf.token'], 0600);
+            }),
         );
     }
 
