@@ -7,13 +7,7 @@
 namespace PBergman\Fork;
 
 use PBergman\Container\Service as BaseContainer;
-use PBergman\SystemV\IPC\Semaphore\Service as SemaphoreService;
 use PBergman\SystemV\IPC\Messages\Service  as MessagesService;
-use PBergman\Fork\MessageQueue;
-use PBergman\Fork\Helper\ExitHelper;
-use PBergman\Fork\Helper\IdentifierHelper;
-use PBergman\Fork\Helper\SignalHelper;
-use PBergman\Fork\Output\Output;
 
 /**
  * wrapper for container
@@ -28,35 +22,55 @@ class Container extends BaseContainer
     function __construct()
     {
         parent::__construct();
-        parent::addArray($this->getDependencies());
+        parent::addArray(array_merge(
+            $this->getParameters(),
+            $this->getMethods()
+        ));
+    }
+
+
+    /**
+     * returning parameters for container
+     *
+     * @return array
+     */
+    protected function getParameters()
+    {
+        return array(
+            'output.class'             => 'PBergman\Fork\Output\Output',
+            'helper.signal.class'      => 'PBergman\Fork\Helper\SignalHelper',
+            'helper.identifier.class'  => 'PBergman\Fork\Helper\IdentifierHelper',
+            'helper.exit.class'        => 'PBergman\Fork\Helper\ExitHelper',
+            'semaphore.class'          => 'PBergman\SystemV\IPC\Semaphore\Service',
+            'messaging.class'          => 'PBergman\Fork\Messaging',
+        );
     }
 
     /**
+     * returning methods for this container
+     *
      * @return array
      */
-    protected function getDependencies()
+    protected function getMethods()
     {
         return array(
-            'helper.identifier' => function() {
-                    return new IdentifierHelper();
-                },
+            'helper.identifier' => function(self $c) {
+                return new $c['helper.identifier.class'];
+            },
             'helper.exit'       => function(self $c) {
-                    return new ExitHelper($c['helper.identifier']);
-                },
-            'helper.signal'     => function(){
-                    return new SignalHelper();
-                },
-            'output'            => function(){
-                    return new Output();
-                },
+                return new $c['helper.exit.class']($c['helper.identifier']);
+            },
+            'helper.signal'     => function(self $c){
+                return new $c['helper.signal.class'];
+            },
+            'output'            => function(self $c){
+                return new $c['output.class'];
+            },
             'semaphore'         => parent::getFactory()->service(function(self $c){
-                    return new SemaphoreService($c['sem.conf.token'], $c['sem.conf.workers'], 0660, false);
-                }),
-            'message_queue'     => parent::getFactory()->service(function(self $c){
-                    return new MessageQueue($c);
-                }),
-            'messages'     => parent::getFactory()->service(function(self $c){
-                return new MessagesService($c['mess.conf.token'], 0600);
+                return new $c['semaphore.class']($c['sem.conf.token'], $c['sem.conf.workers'], 0660, false);
+            }),
+            'messaging'          => parent::getFactory()->service(function(self $c){
+                return new $c['messaging.class'];
             }),
         );
     }

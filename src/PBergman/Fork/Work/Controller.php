@@ -10,10 +10,7 @@ use PBergman\Fork\Container;
 use PBergman\Fork\ForkManager;
 use PBergman\Fork\Output\LogFormatter;
 use PBergman\Fork\ErrorHandler;
-use PBergman\SystemV\IPC\Messages\Sender;
-use PBergman\SystemV\IPC\Messages\Receiver;
-use PBergman\SystemV\IPC\Semaphore\Service as Semaphore;
-use PBergman\SystemV\IPC\Messages\Service as MessageService;
+
 
 /**
  * Class Controller
@@ -24,17 +21,17 @@ class Controller
 {
     /** @var int  */
     private $start;
-    /** @var Container|\PBergman\Fork\Output\Output[]|\PBergman\Fork\Helper\IdentifierHelper[]|\PBergman\Fork\Helper\ExitHelper[]|\PBergman\SystemV\IPC\Semaphore\Service[]|\PBergman\SystemV\IPC\Messages\Service[] */
+    /** @var Container|\PBergman\Fork\Output\Output[]|\PBergman\Fork\Helper\IdentifierHelper[]|\PBergman\Fork\Helper\ExitHelper[]|\PBergman\SystemV\IPC\Semaphore\Service[]|\PBergman\Fork\Messaging[] */
     private $container;
+
     /**
      * @param Container   $container
      */
-    public function __construct(Container $container, $messaging)
+    public function __construct(Container $container)
     {
         // For debugging set start time
         $this->start       = (int) microtime(true);
         $this->container   = $container;
-        $this->messaging   = $messaging;
     }
 
     /**
@@ -115,30 +112,19 @@ class Controller
                     ->setError(sprintf("Fatal error: %s on line %s in file %s", $error['message'], $error['line'], $error['file']));
             }
 
-            /** @var MessageService $ms */
-            $ms = $this->container['instance.message_queue'];
-
-            /** @var  $sender */
-            $sender = $ms->getSender();
-            $sender->setData($object)
-                   //->setBlocking(false)
-                   ->setType(ForkManager::SEND_CHILD)
-                   ->push();
+            $sender = $this->container['instance.messaging']
+                ->newInstance()
+                ->getSender()
+                ->setData($object)
+                ->setBlocking(false)
+                ->setType(ForkManager::SEND_CHILD)
+                ->push()
+            ;
 
             if (false === $sender->isSuccess()) {
                 trigger_error(sprintf('Failed to send message, %s(%s)', $sender->getError(), $sender->getErrorCode()), E_USER_ERROR);
             }
-            $this->write('Finished: %s (%s MB/%s s)', array($object->getName(), round($object->getUsage() /  1024 / 1024, 2), round($object->getDuration(), 2)), !$object->isQuiet());
 
-            /** @var Receiver $receiver */
-            $receiver = $ms->getReceiver();
-            $receiver->setType(ForkManager::SEND_PARENT)
-                     ->setMaxSize($this->container['fm.max_size'])
-                     ->pull();
-
-            if (false === $receiver->isSuccess()) {
-                trigger_error(sprintf('Failed to receive message, %s(%s)', $receiver->getError(), $receiver->getErrorCode()), E_USER_ERROR);
-            }
 
             // Print some debugging when finished
             $this->write('Finished: %s (%s MB/%s s)', array($object->getName(), round($object->getUsage() /  1024 / 1024, 2), round($object->getDuration(), 2)), !$object->isQuiet());

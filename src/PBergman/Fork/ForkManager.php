@@ -6,13 +6,11 @@
 
 namespace PBergman\Fork;
 
-use PBergman\SystemV\IPC\Messages\Receiver;
 use PBergman\Fork\Work\AbstractWork;
 use PBergman\Fork\Work\Controller;
 use PBergman\Fork\Output\OutputInterface;
 use PBergman\Fork\Output\LogFormatter;
 use PBergman\SystemV\IPC\Messages\Service as MessagesService;
-
 
 /**
  * Class Manager
@@ -31,21 +29,20 @@ class ForkManager
     private $maxSize = 16384;
     /** @var array  */
     private $pids = array();
-    /** @var  MessageQueue[]|Container|\PBergman\Fork\Helper\IdentifierHelper[]|\PBergman\Fork\Helper\ExitHelper[]|\PBergman\Fork\Helper\SignalHelper[]|\PBergman\SystemV\IPC\Messages\Service[]|\PBergman\SystemV\IPC\Semaphore\Service[] */
+    /** @var  Container|Messaging[]|\PBergman\Fork\Helper\IdentifierHelper[]|\PBergman\Fork\Helper\ExitHelper[]|\PBergman\Fork\Helper\SignalHelper[]|\PBergman\SystemV\IPC\Messages\Service[]|\PBergman\SystemV\IPC\Semaphore\Service[] */
     private $container;
     /** @var  callable */
     private $postForkChild;
     /** @var  callable */
     private $postForkParent;
-    /** @var int retries befor trigger error when reading message queue */
+    /** @var int retries before trigger error when reading message queue */
     private $receiveRetries = 4;
-    /** @var array|MessageQueue[] $queues */
+    /** @var array|Messaging[] $queues */
     private $queues;
 
     // Some const message queue
     const SEND_CHILD  = 1;
     const SEND_PARENT = 2;
-    const MESSAGE_RECEIVED = 1;
 
     // Some const for remove method
     const CLEAR_SEMAPHORE       = 1;
@@ -129,12 +126,9 @@ class ForkManager
             $semaphore->acquire();
             /** Check for finished children */
             $this->sync();
-//            /** @var \PBergman\SystemV\IPC\Messages\Service[] $messageQueue */
-//            $messageQueue = $this->getMessageQueue();
-            /** @var MessageQueue $messaging */
-            $messaging = $this
-                ->container['message_queue']
-                ->newInstance();
+
+            $messaging = $this->container['messaging']->newInstance();
+
             /** @var int $pid */
             $pid = pcntl_fork();
 
@@ -146,9 +140,9 @@ class ForkManager
                     //unset($messageQueue[0]);
                     $this->jobs  = null;
                     $this->container['instance.semaphore'] = $semaphore;
-//                    $this->container['instance.messaging'] = $messaging;
+                    $this->container['instance.messaging'] = $messaging;
                     $this->checkPostForkCallback();
-                    $controller  = new Controller($this->container, $messaging);
+                    $controller  = new Controller($this->container);
                     $controller->run($work);
                     break;
                 default:    // @parent
@@ -181,23 +175,6 @@ class ForkManager
         return $this;
     }
 
-    /**
-     * @return \PBergman\SystemV\IPC\Messages\Service
-     */
-    protected function getMessageQueue()
-    {
-        if (!isset($this->container['mess.conf.token'])) {
-            $this->container['mess.conf.token'] = ftok(__FILE__, 'm');
-        } else {
-            $this->container['mess.conf.token'] += 1;
-        }
-
-        while (MessagesService::exists($this->container['mess.conf.token'])) {
-            $this->container['mess.conf.token'] += 1;
-        }
-
-        return $this->container['message_queue'];
-    }
 
     /**
      * Check the post fork callbacks
@@ -224,19 +201,15 @@ class ForkManager
             if ($isRunning > 0) {
                 if (pcntl_waitpid($pid, $status, WNOHANG | WUNTRACED)) {
 
-                    $received  = $this->queues[$pid]
-                        ->getMessageQueue()
+                    $receiver = $this->queues[$pid]
+                        ->newInstance()
                         ->getReceiver()
                         ->setType(self::SEND_CHILD)
                         ->setMaxSize($this->maxSize)
                         ->pull();
 
-//                    $receiver = $this->queues[$pid]->getReceiver();
-//                    $received = $receiver->setType(self::SEND_CHILD)
-//                                         ->setMaxSize($this->maxSize)
-//                                         ->pull();
 
-                    if (false === $received->isSuccess()) {
+                    if (false === $receiver->isSuccess()) {
                         if ($isRunning >= $this->receiveRetries) {
                             trigger_error(sprintf('Failed to receive message after %s retries, %s(%s)', $isRunning, $receiver->getError(), $receiver->getErrorCode()), E_USER_ERROR);
                         } else {
@@ -244,7 +217,7 @@ class ForkManager
                         }
                     } else {
                         /** @var AbstractWork $object */
-                        $object = $received->getData();
+                        $object = $receiver->getData();
 
                         if (pcntl_wifstopped($status)) {
 
@@ -263,24 +236,9 @@ class ForkManager
                             $object->setExitCode(pcntl_wexitstatus($status));
                         }
 
-//                        $sender = $this->queues[$pid]->getSender();
-//
-//                        var_dump($sender);
-
-//                        $sender->setData(self::MESSAGE_RECEIVED)
-//                                ->setBlocking(false)
-//                                ->setType(self::SEND_PARENT)
-//                                ->push();
-//
-//                        if (false === $sender->isSuccess()) {
-//                            trigger_error(sprintf('Failed to send message, %s(%s)', $sender->getError(), $sender->getErrorCode()), E_USER_ERROR);
-//                        } else {
-//                            echo "Send message \n";
-//                        }
-
                         /** Remove message queue and stack ref */
-//                        $this->queues[$pid]->remove();
-//                        unset($this->queues[$pid]);
+                        $this->queues[$pid]->remove();
+                        unset($this->queues[$pid]);
 
                         $this->finishedJobs[$object->getPid()] = $object;
                         $isRunning = 0;
