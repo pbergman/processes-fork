@@ -1,16 +1,23 @@
 {
     "name": "pbergman/fork",
-    "description": "a helper to fork a process",
+    "type": "library",
+    "description": "fork library",
+    "keywords": ["fork"],
     "license": "MIT",
-    "autoload": {
-        "psr-0": { "PBergman\\" : "src\\"   }
-    },
     "authors": [
         {
-            "name": "philip",
+            "name": "Philip Bergman",
             "email": "pbergman@live.nl"
         }
     ],
-    "minimum-stability": "dev",
-    "require": {}
+    "require": {
+        "php": ">=5.4.0",
+        "opis/closure": "1.3.*",
+        "monolog/monolog": "~1.13"
+    },
+    "autoload": {
+        "psr-0": {
+            "PBergman": "src"
+        }
+    }
 }
