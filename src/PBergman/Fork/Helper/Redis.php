@@ -7,6 +7,11 @@ namespace PBergman\Fork\Helper;
 
 use \Redis as BaseRedis;
 
+/**
+ * Class Redis
+ *
+ * @package PBergman\Fork\Helper
+ */
 class Redis extends BaseRedis
 {
     protected $options = [];

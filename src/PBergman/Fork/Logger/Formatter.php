@@ -7,6 +7,11 @@ namespace PBergman\Fork\Logger;
 
 use Monolog\Formatter\LineFormatter;
 
+/**
+ * Class Formatter
+ *
+ * @package PBergman\Fork\Logger
+ */
 class Formatter extends LineFormatter
 {
     const SIMPLE_FORMAT  = "[%datetime%] [%id%] %channel%.%level_name%: %message% %context% %extra%\n";
