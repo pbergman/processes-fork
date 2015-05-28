@@ -299,7 +299,7 @@ class Manager
                 break;
             default:
                 if (is_callable($this->postForkCallback)) {
-                    call_user_func_array($this->preForkCallback, array($this));
+                    call_user_func_array($this->postForkCallback, array($this));
                 }
                 return $pid;
         }
