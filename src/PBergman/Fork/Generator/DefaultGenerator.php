@@ -133,6 +133,9 @@ class DefaultGenerator implements GeneratorInterface
                 $return .= $data;
             }
         }
+        if (is_resource($header)) {
+            fclose($header);
+        }
         if ($header['compressed']) {
             $return  = gzinflate($return );
         }
