@@ -3,8 +3,10 @@
  * @author    Philip Bergman <pbergman@live.nl>
  * @copyright Philip Bergman
  */
+
 namespace PBergman\Fork;
 
+use Monolog\ErrorHandler;
 use PBergman\Fork\Generator\DefaultGenerator;
 use PBergman\Fork\Generator\GeneratorInterface;
 use PBergman\Fork\Helper\Redis;
@@ -19,6 +21,8 @@ use Monolog\Processor as Processor;
  *
  * @package PBergman\Fork
  */
+
+/** @noinspection PhpInconsistentReturnPointsInspection */
 class Manager
 {
     const EVENT_FINISHED_WORKERS = 1;
@@ -42,6 +46,10 @@ class Manager
     protected $logger;
     /** @var GeneratorInterface  */
     protected $generator;
+    /** @var callable */
+    protected $postForkCallback;
+    /** @var callable */
+    protected $preForkCallback;
 
     /**
      * @param Redis $redis
@@ -56,11 +64,13 @@ class Manager
 
         if (is_null($logger)) {
             $this->logger = new Logger('manager');
-            $this->logger->pushHandler((new StreamHandler(STDOUT, Logger::DEBUG))->setFormatter(new Formatter()));
+            $this->logger->pushHandler((new StreamHandler(fopen('php://stdout', 'w'), Logger::DEBUG, true, null, true))->setFormatter(new Formatter()));
             $this->logger->pushProcessor(new Processor\PsrLogMessageProcessor());
         } else {
             $this->logger = $logger;
         }
+
+        ErrorHandler::register($this->logger);
 
         $this->redis->connect('127.0.0.1');
         $this->redis->setOption(Redis::OPT_PREFIX, self::REDIS_PREFIX);
@@ -129,7 +139,7 @@ class Manager
                                 $pids[$pid] = true;
                                 $this->redis->reconnect();
                             } catch (\Exception $e) {
-                                $this->logger->error(sprintf('%s @ %s(%s)', $e->getMessage(), $e->getFile(), $e->getLine()));
+                                $this->logException($e);
                                 exit(self::EXIT_ERROR);
                             }
                         }
@@ -154,12 +164,12 @@ class Manager
                     $event++;
                     break;
                 case self::EVENT_WATCH_CHILDREN:
-                    if (!empty($signaled)) {
-                        if ($this->jobs->valid() || count($this->getRunning($pids, $signaled))) {
-                            foreach ($pids as $pid => $working) {
-                                $this->checkExitChild($pid, $pids, $signaled, WNOHANG|WUNTRACED);
-                            }
-                        } else {
+                    if ($this->jobs->valid() || count($this->getRunning($pids, $signaled))) {
+                        foreach ($pids as $pid => $working) {
+                            $this->checkExitChild($pid, $pids, $signaled, WNOHANG|WUNTRACED);
+                        }
+                    } else {
+                        if (!empty($signaled)) {
                             $this->checkExitChild(-1, $pids, $signaled, WUNTRACED);
                         }
                     }
@@ -269,7 +279,7 @@ class Manager
      * fork a child process, and return the pid for
      * parent process, will start event loop for child
      *
-     * @return bool|int
+     * @return bool|int|void
      * @throws \RuntimeException
      */
     protected function fork()
@@ -277,71 +287,97 @@ class Manager
         if (!function_exists('pcntl_fork')) {
             throw new \RuntimeException('Function pcntl_fork does not exist');
         }
+        if (is_callable($this->preForkCallback)) {
+            call_user_func_array($this->preForkCallback, array($this));
+        }
         switch ($pid = pcntl_fork()) {
             case -1:
                 throw new \RuntimeException('Could not fork process');
                 break;
             case 0:
-                $redis = $this->redis->duplicate();
-                $redis->setOption(Redis::OPT_READ_TIMEOUT, $this->timeout_idle);
-                unset($this->jobs, $this->workers, $this->redis);
-                $this->initChild();
-                try {
-                    $redis->psubscribe([self::childBaseChanelName()], function(Redis $client, $pattern, $chan, $msg) {
-                        $redis = $client->duplicate();
-                        switch ($chan) {
-                            case self::childChanelNameWork():
-                                try {
-                                    $work = $this->generator->unpack($msg);
-                                    if (!is_null($work )) {
-                                        if (is_callable($work)) {
-                                            try{
-                                                $work($redis, $this->logger);
-                                                $this->logger->debug('Job finished');
-                                            } catch (\Exception $e){
-                                                $this->logger->error(sprintf('%s: %s', get_class($e), $e->getMessage()));
-                                            }
-                                            if (!$redis->publish(self::childChanelNameCleanup(null, null), true)) {
-                                                $this->logger->error($redis->getLastError());
-                                            }
-                                        }  else {
-                                            $this->logger->notice(sprintf('Received work but was not callable, got: "%s"', gettype($work)));
-                                        }
-                                    }
-                                } catch (\Exception $e) {
-                                    $this->logger->error(sprintf('%s @ %s(%s)', $e->getMessage(), $e->getFile(), $e->getLine()));
-                                }
-                                break;
-                            case self::childChanelNameCleanup():
-                                if (function_exists('gc_collect_cycles')) {
-                                    $this->logger->debug('Cleaning up resources');
-                                    gc_collect_cycles();
-                                }
-                                if (!$redis->lPush(self::parentChanelNotifier(), getmypid())) {
-                                    $this->logger->error($redis->getLastError());
-                                }
-                                break;
-                            case self::childChanelNameExit():
-                                $this->logger->debug('Received exit signal, shutting down');
-                                $client->close();
-                                break;
-                        }
-                    });
-                } catch (\RedisException $e) {
-                    if ($e->getMessage() === 'read error on connection') {
-                        $this->logger->notice(sprintf('Exiting after running %d sec idle', $this->timeout_idle));
-                        exit(self::EXIT_TIMEOUT);
-                    } else {
-                        $this->logger->error($e->getMessage());
-                        exit(self::EXIT_ERROR);
-                    }
-                }
-                exit(self::EXIT_NORMAL);
+                $this->childProcess();
                 break;
             default:
+                if (is_callable($this->postForkCallback)) {
+                    call_user_func_array($this->preForkCallback, array($this));
+                }
                 return $pid;
-
         }
+    }
+
+    protected function childProcess()
+    {
+        $redis = $this->redis->duplicate();
+        $redis->setOption(Redis::OPT_READ_TIMEOUT, $this->timeout_idle);
+        unset($this->jobs, $this->workers, $this->redis);
+        try {
+            $redis->psubscribe([self::childBaseChanelName()], function(Redis $client, $pattern, $chan, $msg) {
+                $redis = $client->duplicate();
+                switch ($chan) {
+                    case self::childChanelNameWork():
+                        try {
+                            $work = $this->generator->unpack($msg);
+                            if (is_callable($work)) {
+                                try{
+                                    $work($this->logger, $redis);
+                                    $this->logger->debug('Job finished');
+                                } catch (\Exception $e){
+                                    $this->logException($e);
+                                }
+                                if (!$redis->publish(self::childChanelNameCleanup(null, null), true)) {
+                                    $this->logger->error($redis->getLastError());
+                                }
+                            }  else {
+                                $this->logger->notice(sprintf('Received work but was not callable, got: "%s"', gettype($work)));
+                            }
+                        } catch (\Exception $e) {
+                            $this->logException($e);
+                        }
+                        break;
+                    case self::childChanelNameCleanup():
+                        if (function_exists('gc_collect_cycles')) {
+                            $this->logger->debug('Cleaning up resources');
+                            gc_collect_cycles();
+                        }
+                        if (!$redis->lPush(self::parentChanelNotifier(), getmypid())) {
+                            $this->logger->error($redis->getLastError());
+                        }
+                        break;
+                    case self::childChanelNameExit():
+                        $this->logger->debug('Received exit signal, shutting down');
+                        $client->close();
+                        break;
+                }
+            });
+        } catch (\RedisException $e) {
+            if ($e->getMessage() === 'read error on connection') {
+                $this->logger->notice(sprintf('Exiting after running %d sec idle', $this->timeout_idle));
+                exit(self::EXIT_TIMEOUT);
+            } else {
+                $this->logException($e);
+                exit(self::EXIT_ERROR);
+            }
+        }
+        exit(self::EXIT_NORMAL);
+    }
+
+    /**
+     * print exceptions and check for closure
+     *
+     * @param \Exception $e
+     */
+    protected function logException(\Exception $e)
+    {
+        // Check if is file and not closure
+        if (preg_match('/^closure\:/', $e->getFile())) {
+            $this->logger->critical(sprintf('Exception: %s @ Closure(...)(%s)', $e->getMessage(), $e->getLine()));
+        } else {
+            $this->logger->critical(sprintf('Exception: %s @ %s(%s)', $e->getMessage(), $e->getFile(), $e->getLine()));
+        }
+        array_map(function($line){
+            $this->logger->critical($line);
+        }, explode(PHP_EOL, $e->getTraceAsString()));
+
     }
 
     /**
@@ -408,22 +444,6 @@ class Manager
         return sprintf('%sPARENT#NOTIFIER', $prefix);
     }
 
-
-    /**
-     * will disable error output and delegate errors on exit
-     */
-    protected function initChild()
-    {
-        error_reporting(0);
-        register_shutdown_function(function(){
-            $error = error_get_last();
-            if ($error['type'] === ($error['type'] & (E_ERROR|E_COMPILE_ERROR|E_CORE_ERROR|E_USER_ERROR))) {
-                $this->logger->error(sprintf('%s (%s)', $error['message'], $error['line']));
-                exit(self::EXIT_ERROR);
-            }
-        });
-    }
-
     /**
      * @param  int $workers
      * @return $this;
@@ -451,6 +471,62 @@ class Manager
     public function setGenerator(GeneratorInterface $generator)
     {
         $this->generator = $generator;
+        return $this;
+    }
+
+    /**
+     * @param  callable $postForkCallback
+     * @return $this;
+     */
+    public function setPostForkCallback($postForkCallback)
+    {
+        $this->postForkCallback = $postForkCallback;
+        return $this;
+    }
+
+    /**
+     * @param  callable $preForkCallback
+     * @return $this;
+     */
+    public function setPreForkCallback($preForkCallback)
+    {
+        $this->preForkCallback = $preForkCallback;
+        return $this;
+    }
+
+    /**
+     * @return Redis
+     */
+    public function getRedis()
+    {
+        return $this->redis;
+    }
+
+    /**
+     * @param  Redis $redis
+     * @return $this;
+     */
+    public function setRedis(Redis $redis)
+    {
+        $this->redis = $redis;
+        return $this;
+    }
+
+    /**
+     * @return LoggerInterface
+     */
+    public function getLogger()
+    {
+        return $this->logger;
+    }
+
+    /**
+     * @param  LoggerInterface $logger
+     * @return $this;
+     */
+    public function setLogger(LoggerInterface $logger)
+    {
+        $this->logger = $logger;
         return $this;
     }
 }
